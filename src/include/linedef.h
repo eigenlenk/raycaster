@@ -13,8 +13,8 @@ typedef struct {
 #ifdef LINE_VIS_CHECK
   uint32_t last_visible_tick;
 #endif
-  uint8_t lights_count;
-  light *lights[MAX_LIGHTS_PER_SURFACE];
+  uint8_t lights_count[2];
+  light *lights[2][MAX_LIGHTS_PER_SURFACE];
 } linedef;
 
 #endif

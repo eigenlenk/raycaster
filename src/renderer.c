@@ -496,17 +496,7 @@ static void draw_wall_segment(
 
   memcpy(c, debug_colors[hit->line->color % 16], sizeof(uint8_t)*3);
 
-  size_t lights_num;
-  struct light *lights[MAX_LIGHTS_PER_SURFACE];
-  const bool front_facing_line = hit->line->side_sector[0] == sect;
-
-  /* Find which lights face the wall */
-  for (y = 0, lights_num = 0; y < hit->line->lights_count; ++y) {
-    light = math_sign(hit->line->v1->point, hit->line->v0->point, VEC2F(hit->line->lights[y]->position.x, hit->line->lights[y]->position.y));
-    if ((front_facing_line && light > 0) || (!front_facing_line && light < 0)) {
-      lights[lights_num++] = hit->line->lights[y];
-    }
-  }
+  const int side = hit->line->side_sector[0] == sect ? 0 : 1;
 
 #ifdef VECTORIZED_LIGHT_MUL
   int32_t temp[4];
@@ -521,8 +511,8 @@ static void draw_wall_segment(
       calculate_light(
         sect,
         VEC3F(hit->point.x, hit->point.y, -wz),
-        lights_num,
-        lights,
+        hit->line->lights_count[side],
+        hit->line->lights[side],
 #if LIGHT_STEPS > 0
         hit->light_steps
 #else

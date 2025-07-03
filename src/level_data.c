@@ -5,7 +5,7 @@
 #define XY(V) (int)V.x, (int)V.y
 
 static bool
-linedef_contains_light(const linedef*, const light*);
+linedef_contains_light(const linedef*, int, const light*);
 
 static bool
 sector_contains_light(const sector*, const light*);
@@ -97,7 +97,8 @@ sector* level_data_create_sector_from_polygon(level_data *this, polygon *poly)
 
 light*
 level_data_add_light(level_data *this, vec3f pos, float r, float s) {
-  int si, li, affected_lines = 0;
+  int si, li, side, affected_lines = 0;
+  float sign;
   sector *sect;
   linedef *line;
   vec2f pos2d = VEC2F(pos.x, pos.y);
@@ -131,9 +132,15 @@ level_data_add_light(level_data *this, vec3f pos, float r, float s) {
           sect->lights[sect->lights_count++] = new_light;
         }
 
-        if (!linedef_contains_light(line, new_light) && line->lights_count < MAX_LIGHTS_PER_SURFACE) {
-          printf("Light touches line %d of sector %d\n", li, si);
-          line->lights[line->lights_count++] = new_light;
+        side = sect==line->side_sector[0]?0:1;
+        sign = math_sign(line->v0->point, line->v1->point, pos2d);
+
+        if ((side == 0 ? (sign < 0) : (sign > 0)) &&
+            line->lights_count[side] < MAX_LIGHTS_PER_SURFACE &&
+            !linedef_contains_light(line, side, new_light)
+        ) {
+          printf("Light touches line %d side %d of sector %d\n", li, side, si);
+          line->lights[side][line->lights_count[side]++] = new_light;
           affected_lines++;
         }
       }
@@ -195,11 +202,11 @@ level_data_intersect_3d(const level_data *this, vec3f p0, vec3f p1, const sector
 }
 
 static bool
-linedef_contains_light(const linedef *this, const light *lt)
+linedef_contains_light(const linedef *this, int side, const light *lt)
 {
   size_t i;
-  for (i = 0; i < this->lights_count; ++i) {
-    if (this->lights[i] == lt) {
+  for (i = 0; i < this->lights_count[side]; ++i) {
+    if (this->lights[side][i] == lt) {
       return true;
     }
   }

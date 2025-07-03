@@ -443,7 +443,7 @@ static void create_semi_intersecting_sectors()
 
   demo_level = map_builder_build(&builder);
 
-  dynamic_light = level_data_add_light(demo_level, VEC3F(280, 200, 64), 250, 1.0f);
+  dynamic_light = level_data_add_light(demo_level, VEC3F(280, 200, 64), 650, 1.0f);
   light_z = dynamic_light->position.z;
 
   map_builder_free(&builder);
