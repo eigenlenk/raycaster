@@ -2,6 +2,7 @@
 #define RAYCAST_LINEDEF_INCLUDED
 
 #include "vertex.h"
+#include "light.h"
 
 struct sector;
 
@@ -12,6 +13,8 @@ typedef struct {
 #ifdef LINE_VIS_CHECK
   uint32_t last_visible_tick;
 #endif
+  uint8_t lights_count;
+  light *lights[MAX_LIGHTS_PER_SURFACE];
 } linedef;
 
 #endif

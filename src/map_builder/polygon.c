@@ -124,6 +124,19 @@ void polygon_remove_point(polygon *this, vec2f point)
   }
 }
 
+void
+polygon_reverse_vertices(polygon *this)
+{
+  int i,j, w = this->vertices_count / 2;
+  vec2f temp_swap;
+  for (i = 0; i < w; ++i) {
+    j = this->vertices_count-1-i;
+    temp_swap = this->vertices[j];
+    this->vertices[j] = this->vertices[i];
+    this->vertices[i] = temp_swap;
+  }
+}
+
 float polygon_signed_area(const polygon *this)
 {
   size_t i;

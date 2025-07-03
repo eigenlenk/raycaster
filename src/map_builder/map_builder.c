@@ -45,6 +45,7 @@ map_builder_build(map_builder *this)
   level->sectors_count = 0;
   level->linedefs_count = 0;
   level->vertices_count = 0;
+  level->lights_count = 0;
 
   M_DEBUG(printf("Building level (0x%p) ...\n", level));
 
@@ -299,6 +300,10 @@ map_builder_insert_polygon(
     for (i=0; i < vertices_count; ++i) {
       this->polygons[insert_index].vertices[i] = VEC2F(list[i].x, list[i].y);
     }
+  }
+
+  if (POLYGON_CLOCKWISE_WINDING(&this->polygons[insert_index]) == false) {
+    polygon_reverse_vertices(&this->polygons[insert_index]);
   }
 
   M_DEBUG(for (i=0; i < vertices_count; ++i) {

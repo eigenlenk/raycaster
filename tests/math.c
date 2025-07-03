@@ -58,6 +58,10 @@ TEST(math, find_line_intersection)
   if (math_find_line_intersection(VEC2F(0,0), VEC2F(256,0), VEC2F(512,0), VEC2F(768,0), &r, &d)) {
     TEST_FAIL_MESSAGE("Lines should not have intersected");
   }
+
+  if (math_find_line_intersection(VEC2F(0,250), VEC2F(200,250), VEC2F(100,250), VEC2F(300,250), &r, &d)) {
+    TEST_FAIL_MESSAGE("Lines should not have intersected");
+  }
 }
 
 TEST(math, line_segment_point_perpendicular_distance)

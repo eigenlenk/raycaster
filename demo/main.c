@@ -50,6 +50,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
       level = atoi(argv[i+1]);
     } else if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "-fullscreen")) {
       fullscreen = true;
+    } else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "-scale")) {
+      scale = M_MAX(1, atoi(argv[i+1]));
     }
   }
 
@@ -366,65 +368,67 @@ static void create_big_one()
 
 static void create_semi_intersecting_sectors()
 {
+  const float base_light = 0.15f;
+
   map_builder builder = { 0 };
 
-  map_builder_add_polygon(&builder, 0, 128, 0.75f, VERTICES(
+  map_builder_add_polygon(&builder, 0, 128, base_light, VERTICES(
     VEC2F(0, 0),
     VEC2F(500, 0),
     VEC2F(500, 500),
     VEC2F(0, 500)
   ));
 
-  map_builder_add_polygon(&builder, 32, 96, 1.f, VERTICES(
+  map_builder_add_polygon(&builder, 32, 96, base_light, VERTICES(
     VEC2F(0, 200),
     VEC2F(50, 200),
     VEC2F(50, 400),
     VEC2F(0, 400)
   ));
 
-  map_builder_add_polygon(&builder, 32, 256, 1.0f, VERTICES(
+  map_builder_add_polygon(&builder, 32, 256, base_light, VERTICES(
     VEC2F(250, 250),
     VEC2F(750, 250),
     VEC2F(750, 350),
     VEC2F(250, 350)
   ));
 
-  map_builder_add_polygon(&builder, 56, 96, 1.0f, VERTICES(
+  map_builder_add_polygon(&builder, 56, 96, base_light, VERTICES(
     VEC2F(240, 240),
     VEC2F(260, 240),
     VEC2F(260, 260),
     VEC2F(240, 260)
   ));
 
-  map_builder_add_polygon(&builder, 56, 88, 1.0f, VERTICES(
+  map_builder_add_polygon(&builder, 56, 88, base_light, VERTICES(
     VEC2F(240, 340),
     VEC2F(260, 340),
     VEC2F(260, 360),
     VEC2F(240, 360)
   ));
 
-  map_builder_add_polygon(&builder, 56, 96, 1.0f, VERTICES(
+  map_builder_add_polygon(&builder, 56, 96, base_light, VERTICES(
     VEC2F(400, 350),
     VEC2F(420, 350),
     VEC2F(420, 370),
     VEC2F(400, 370)
   ));
 
-  map_builder_add_polygon(&builder, 56, 96, 1.0f, VERTICES(
+  map_builder_add_polygon(&builder, 56, 96, base_light, VERTICES(
     VEC2F(400, 250),
     VEC2F(420, 250),
     VEC2F(420, 270),
     VEC2F(400, 270)
   ));
 
-  map_builder_add_polygon(&builder, 24, 128, 0.9f, VERTICES(
+  map_builder_add_polygon(&builder, 24, 128, base_light, VERTICES(
     VEC2F(240, 250),
     VEC2F(250, 260),
     VEC2F(250, 350),
     VEC2F(240, 350)
   ));
 
-  map_builder_add_polygon(&builder, -128, 256, 0.25f, VERTICES(
+  map_builder_add_polygon(&builder, -128, 256, base_light, VERTICES(
     VEC2F(-100, 500),
     VEC2F(100, 100),
     VEC2F(100, -100),
@@ -432,6 +436,9 @@ static void create_semi_intersecting_sectors()
   ));
 
   demo_level = map_builder_build(&builder);
+
+  level_data_add_light(demo_level, VEC3F(250, 150, 64), 300, 1.0f);
+
   map_builder_free(&builder);
 }
 
@@ -439,15 +446,15 @@ static void create_crossing_and_splitting_sectors()
 {
   map_builder builder = { 0 };
 
-  map_builder_add_polygon(&builder, 0, 128, 1, VERTICES(
-    VEC2F(0, 0),
-    VEC2F(500, 0),
-    VEC2F(500, 100),
-    VEC2F(0, 100)
+  map_builder_add_polygon(&builder, 0, 128, 0.1f, VERTICES(
+    VEC2F(-500, 0),
+    VEC2F(1000, 0),
+    VEC2F(1000, 100),
+    VEC2F(-500, 100)
   ));
 
   /* This sector will split the first one so you end up with 3 sectors */
-  map_builder_add_polygon(&builder, 16, 112, 1, VERTICES(
+  map_builder_add_polygon(&builder, 16, 112, 0.1f, VERTICES(
     VEC2F(225, -250),
     VEC2F(325, -250),
     VEC2F(325, 250),
@@ -455,5 +462,8 @@ static void create_crossing_and_splitting_sectors()
   ));
 
   demo_level = map_builder_build(&builder);
+
+  level_data_add_light(demo_level, VEC3F(250, 50, 64), 200, 0.5f);
+
   map_builder_free(&builder);
 }

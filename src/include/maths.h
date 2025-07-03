@@ -4,7 +4,7 @@
 #include "macros.h"
 #include "types.h"
 
-#define MATHS_EPSILON 1e-6f
+#define MATHS_EPSILON 1e-5f
 
 M_INLINED float math_max(float a, float b) {
   return fmaxf(a, b);
@@ -37,6 +37,14 @@ M_INLINED float math_length(vec2f v) {
 M_INLINED int32_t math_sign(vec2f p0, vec2f p1, vec2f point) {
   /* > 0 = is left of the line*/
   return (int32_t)((p1.x - p0.x) * (point.y - p0.y) - (point.x - p0.x) * (p1.y - p0.y));
+}
+
+M_INLINED float math_vec3_dot(vec3f v) {
+  return (v.x * v.x + v.y * v.y + v.z * v.z);
+}
+
+M_INLINED float math_vec3_distance_squared(vec3f a, vec3f b) {
+  return math_vec3_dot(vec3f_sub(b, a));
 }
 
 M_INLINED bool math_find_line_intersection(

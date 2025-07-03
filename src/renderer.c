@@ -83,18 +83,33 @@ typedef struct {
         point_distance;
   linedef *line;
   sector *back_sector;
+#if LIGHT_STEPS > 0
   uint8_t light_steps;
+#else
+  float light_falloff;
+#endif
 } line_hit;
 
-#define POSTERIZATION_STEPS 16
+#define DIMMING_DISTANCE 4096.f
 
-static const float POSTERIZATION_STEP_DISTANCE = RENDERER_DRAW_DISTANCE / POSTERIZATION_STEPS;
-static const float POSTERIZATION_STEP_LIGHT_CHANGE = 1.f / POSTERIZATION_STEPS;
+#if LIGHT_STEPS > 0
+static const float LIGHT_STEP_DISTANCE = DIMMING_DISTANCE / LIGHT_STEPS;
+static const float LIGHT_STEP_VALUE_CHANGE = 1.f / LIGHT_STEPS;
+#endif
 
 #ifdef LINE_VIS_CHECK
 static void
 check_sector_visibility(renderer*, const frame_info*, sector*);
 #endif
+
+static float
+calculate_light(const sector *sect, vec3f pos, size_t, light**,
+#if LIGHT_STEPS > 0
+  uint8_t steps
+#else
+  float light_falloff
+#endif
+);
 
 static void check_sector_column(renderer*, const frame_info*, column_info*, const sector*);
 static void draw_wall_segment(const frame_info*, column_info*, const sector*, const line_hit*, int32_t from, int32_t to, float, float);
@@ -103,10 +118,10 @@ static void draw_ceiling_segment(renderer*, const frame_info*, column_info*, con
 static void draw_column(renderer*, const frame_info*, column_info*, const sector*, line_hit const*);
 
 M_INLINED void init_depth_values(renderer *this) {
-  register size_t y, h = (this->buffer_size.y>>1);
+  register size_t y, h = 1+(this->buffer_size.y>>1);
   this->depth_values = malloc(h*sizeof(float));
   for (y = 0; y < h; ++y) {
-    this->depth_values[y] = !y ? 1.f : 1.f / (y);
+    this->depth_values[y] = !y ? 1.f : 1.f / y;
   }
 }
 
@@ -242,6 +257,37 @@ check_sector_visibility(
 
 #endif
 
+static float
+calculate_light(const sector *sect, vec3f pos, size_t num_lights, light **lights,
+#if LIGHT_STEPS > 0
+  uint8_t steps
+#else
+  float light_falloff
+#endif
+) {
+  size_t i;
+  light *lt;
+  float v = sect->light, dsq;
+  for (i = 0; i < num_lights; ++i) {
+    lt = lights[i];
+    dsq = math_vec3_distance_squared(pos, lt->position);
+    if (dsq > lt->radius_sq) {
+      continue;
+    }
+#ifdef DYNAMIC_SHADOWS
+    if (level_data_intersect_3d(lt->level, pos, lt->position, sect)) {
+      continue;
+    }
+#endif
+    v = math_max(v, lt->strength * math_min(1.f, 1.f - (dsq / lt->radius_sq)));
+  }
+#if LIGHT_STEPS > 0
+  return (truncf(v / LIGHT_STEP_VALUE_CHANGE) * LIGHT_STEP_VALUE_CHANGE) - (steps * LIGHT_STEP_VALUE_CHANGE);
+#else
+  return v - light_falloff;
+#endif
+}
+
 M_INLINED void sort_nearest(line_hit *arr, int n) {
   register int i, j;
   line_hit hit;
@@ -303,7 +349,11 @@ static void check_sector_column(
         .point_distance = point_distance,
         .line = line,
         .back_sector = line->side_sector[0] == sect ? line->side_sector[1] : line->side_sector[0],
-        .light_steps = (uint8_t)(point_distance / POSTERIZATION_STEP_DISTANCE)
+#if LIGHT_STEPS > 0
+        .light_steps = (uint8_t)(point_distance / LIGHT_STEP_DISTANCE)
+#else
+        .light_falloff = point_distance / DIMMING_DISTANCE
+#endif
       };
     }
   }
@@ -379,14 +429,14 @@ static void draw_column(
     const float top_start_y = ceilf(math_clamp(ceiling_z_local, column->top_limit, column->bottom_limit));
     const float top_end_y = floorf(math_clamp(ceiling_z_local + top_segment, column->top_limit, column->bottom_limit));
     const float bottom_end_y = floorf(math_clamp(floor_z_local, column->top_limit, column->bottom_limit));
-    const float bottom_start_y = ceilf(math_clamp(floor_z_local - bottom_segment, column->top_limit, column->bottom_limit));
+    const float bottom_start_y = math_clamp(floor_z_local - bottom_segment, column->top_limit, column->bottom_limit);
 
     if (top_segment > 0) {
       draw_wall_segment(info, column, sect, hit, top_start_y, top_end_y, view_z_scaled, wall_texture_step);
     }
 
     if (bottom_segment > 0) {
-      draw_wall_segment(info, column, sect, hit, bottom_start_y, bottom_end_y, view_z_scaled, wall_texture_step);
+      draw_wall_segment(info, column, sect, hit, floorf(bottom_start_y), bottom_end_y, view_z_scaled, wall_texture_step);
     }
 
     draw_ceiling_segment(
@@ -442,10 +492,21 @@ static void draw_wall_segment(
   register uint32_t *p = column->buffer_start + (from*column->buffer_stride);
   int32_t wz;
   uint8_t c[3];
-  float light = math_max(0.f, sect->light - hit->light_steps * POSTERIZATION_STEP_LIGHT_CHANGE);
-  float tex_pos = ((from - info->half_h - view_z_scaled /*+ floor_z_scaled*/) * texture_step);
+  float light, tex_pos = ((from - info->half_h - view_z_scaled /*+ floor_z_scaled*/) * texture_step);
 
   memcpy(c, debug_colors[hit->line->color % 16], sizeof(uint8_t)*3);
+
+  size_t lights_num;
+  struct light *lights[MAX_LIGHTS_PER_SURFACE];
+  const bool front_facing_line = hit->line->side_sector[0] == sect;
+
+  /* Find which lights face the wall */
+  for (y = 0, lights_num = 0; y < hit->line->lights_count; ++y) {
+    light = math_sign(hit->line->v1->point, hit->line->v0->point, VEC2F(hit->line->lights[y]->position.x, hit->line->lights[y]->position.y));
+    if ((front_facing_line && light > 0) || (!front_facing_line && light < 0)) {
+      lights[lights_num++] = hit->line->lights[y];
+    }
+  }
 
 #ifdef VECTORIZED_LIGHT_MUL
   int32_t temp[4];
@@ -456,6 +517,20 @@ static void draw_wall_segment(
   for (y = from; y <= to; ++y, p += column->buffer_stride, tex_pos += texture_step) {
     wz = (int)floorf(tex_pos);
     c[0] = wz & 127;
+    light = math_max(
+      calculate_light(
+        sect,
+        VEC3F(hit->point.x, hit->point.y, -wz),
+        lights_num,
+        lights,
+#if LIGHT_STEPS > 0
+        hit->light_steps
+#else
+        hit->light_falloff
+#endif
+      ),
+      0.f
+    );
 
 #ifdef VECTORIZED_LIGHT_MUL
     __m128i result_i32 = _mm_cvtps_epi32(_mm_min_ps(_mm_mul_ps(_mm_set_ps(0, c[2], c[1], c[0]), _mm_set1_ps(light)), _mm_set1_ps(255.0f)));
@@ -500,14 +575,27 @@ static void draw_floor_segment(
 
   for (y = from, yz = from - info->half_h; y < to; ++y, p += column->buffer_stride) {
     distance = (distance_from_view * this->depth_values[yz++]) / column->theta;
-    weight = distance / hit->point_distance;
+    weight = math_min(1.f, distance / hit->point_distance);
     wx = (weight * hit->point.x) + ((1-weight) * column->ray_start.x);
     wy = (weight * hit->point.y) + ((1-weight) * column->ray_start.y);
 
     c[1] = (int)truncf(wx) & 127;
     c[2] = (int)truncf(wy) & 127;
 
-    light = math_max(0.f, sect->light - (uint8_t)(distance / POSTERIZATION_STEP_DISTANCE) * POSTERIZATION_STEP_LIGHT_CHANGE);
+    light = math_max(
+      calculate_light(
+        sect,
+        VEC3F(wx, wy, sect->floor_height),
+        sect->lights_count,
+        ((sector*)sect)->lights,
+#if LIGHT_STEPS > 0
+        distance / LIGHT_STEP_DISTANCE
+#else
+        distance / DIMMING_DISTANCE
+#endif
+      ),
+      0.f
+    );
 
 #ifdef VECTORIZED_LIGHT_MUL
     __m128i result_i32 = _mm_cvtps_epi32(_mm_min_ps(_mm_mul_ps(_mm_set_ps(0, c[2], c[1], c[0]), _mm_set1_ps(light)), _mm_set1_ps(255.0f)));
@@ -539,7 +627,7 @@ static void draw_ceiling_segment(
 
   register uint32_t y, yz;
   register uint32_t *p = column->buffer_start + (from*column->buffer_stride);
-  register float light, distance, weight, wx, wy;
+  register float light=1, distance, weight, wx, wy;
   uint8_t c[3];
   memcpy(c, debug_colors_dark[sect->color % 16], sizeof(uint8_t)*3);
 
@@ -549,16 +637,29 @@ static void draw_ceiling_segment(
   register uint32_t r, g, b;
 #endif
 
-  for (y = from, yz = info->half_h - from - 1; y < to; ++y, p += column->buffer_stride) {
+  for (y = from, yz = info->half_h - from; y < to; ++y, p += column->buffer_stride) {
     distance = (distance_from_view * this->depth_values[yz--]) / column->theta;
-    weight = distance / hit->point_distance;
+    weight = math_min(1.f, distance / hit->point_distance);
     wx = (weight * hit->point.x) + ((1-weight) * column->ray_start.x);
     wy = (weight * hit->point.y) + ((1-weight) * column->ray_start.y);
 
     c[0] = (int)truncf(wx) & 127;
     c[1] = (int)truncf(wy) & 127;
 
-    light = math_max(0.f, sect->light - (uint8_t)(distance / POSTERIZATION_STEP_DISTANCE) * POSTERIZATION_STEP_LIGHT_CHANGE);
+    light = math_max(
+      calculate_light(
+        sect,
+        VEC3F(wx, wy, sect->ceiling_height),
+        sect->lights_count,
+        ((sector*)sect)->lights,
+#if LIGHT_STEPS > 0
+        distance / LIGHT_STEP_DISTANCE
+#else
+        distance / DIMMING_DISTANCE
+#endif
+      ),
+      0.f
+    );
 
 #ifdef VECTORIZED_LIGHT_MUL
     __m128i result_i32 = _mm_cvtps_epi32(_mm_min_ps(_mm_mul_ps(_mm_set_ps(0, c[2], c[1], c[0]), _mm_set1_ps(light)), _mm_set1_ps(255.0f)));

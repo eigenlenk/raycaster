@@ -18,6 +18,8 @@ typedef struct sector {
   uint32_t color;
   uint32_t last_visibility_check_tick;
   linedef **linedefs;
+  uint8_t lights_count;
+  light *lights[MAX_LIGHTS_PER_SURFACE];
 } sector;
 
 bool

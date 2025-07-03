@@ -2,16 +2,19 @@
 #define RAYCAST_LEVEL_DATA_INCLUDED
 
 #include "sector.h"
+#include "light.h"
 
 struct polygon;
 
 typedef struct level_data {
   size_t sectors_count,
          linedefs_count,
-         vertices_count;
+         vertices_count,
+         lights_count;
   vertex vertices[16384];
   linedef linedefs[8192];
   sector sectors[2048];
+  light lights[64];
 } level_data;
 
 vertex*
@@ -22,5 +25,11 @@ level_data_get_linedef(level_data*, sector*, vertex*, vertex*);
 
 sector*
 level_data_create_sector_from_polygon(level_data*, struct polygon*);
+
+light*
+level_data_add_light(level_data*, vec3f, float, float);
+
+bool
+level_data_intersect_3d(const level_data*, vec3f, vec3f, const sector*);
 
 #endif
