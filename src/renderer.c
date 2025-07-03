@@ -97,14 +97,11 @@ typedef enum {
 } surface_type;
 
 #define DIMMING_DISTANCE 4096.f
+#define LIGHT_RESOLUTION 1
 
 #if LIGHT_STEPS > 0
 static const float LIGHT_STEP_DISTANCE = DIMMING_DISTANCE / LIGHT_STEPS;
 static const float LIGHT_STEP_VALUE_CHANGE = 1.f / LIGHT_STEPS;
-#endif
-
-#ifdef DYNAMIC_SHADOWS
-static const uint32_t SHADOW_RESOLUTION = 2;
 #endif
 
 #ifdef LINE_VIS_CHECK
@@ -281,10 +278,11 @@ calculate_light(const sector *sect, vec3f pos, surface_type surface_type, size_t
   for (i = 0; i < num_lights; ++i) {
     lt = lights[i];
     if (surface_type != SURFACE_WALL &&
-        ((surface_type == SURFACE_FLOOR && pos.z < sect->floor_height)
-          || (surface_type == SURFACE_CEILING && pos.z > sect->ceiling_height))) {
+        ((surface_type == SURFACE_FLOOR && lt->position.z < sect->floor_height)
+          || (surface_type == SURFACE_CEILING && lt->position.z > sect->ceiling_height))) {
       continue;
     }
+
     dsq = math_vec3_distance_squared(pos, lt->position);
     if (dsq > lt->radius_sq) {
       continue;
@@ -507,7 +505,7 @@ static void draw_wall_segment(
     return;
   }
 
-  register uint32_t y, r = from % SHADOW_RESOLUTION;
+  register uint32_t y, res_counter = from % LIGHT_RESOLUTION;
   register uint32_t *p = column->buffer_start + (from*column->buffer_stride);
   uint8_t c[3];
   float light=-1, tex_pos = ((from - info->half_h - view_z_scaled /*+ floor_z_scaled*/) * texture_step);
@@ -524,7 +522,7 @@ static void draw_wall_segment(
 
   for (y = from; y <= to; ++y, p += column->buffer_stride, tex_pos += texture_step) {
     c[0] = (int)floorf(tex_pos) & 127;
-    if (!r || light < 0) {
+    if (!res_counter || light < 0) {
       light = math_max(
         calculate_light(
           sect,
@@ -541,7 +539,7 @@ static void draw_wall_segment(
         0.f
       );
     }
-    r = (r+1)&(SHADOW_RESOLUTION-1);
+    res_counter = (res_counter+1)&(LIGHT_RESOLUTION-1);
 
 #ifdef VECTORIZED_LIGHT_MUL
     __m128i result_i32 = _mm_cvtps_epi32(_mm_min_ps(_mm_mul_ps(_mm_set_ps(0, c[2], c[1], c[0]), _mm_set1_ps(light)), _mm_set1_ps(255.0f)));
@@ -571,7 +569,7 @@ static void draw_floor_segment(
     return;
   }
 
-  register uint32_t y, yz, r = from % SHADOW_RESOLUTION;
+  register uint32_t y, yz, res_counter = from % LIGHT_RESOLUTION;
   register uint32_t *p = column->buffer_start + (from*column->buffer_stride);
   register float light=-1, distance, weight, wx, wy;
 
@@ -593,7 +591,7 @@ static void draw_floor_segment(
     c[1] = (int)truncf(wx) & 127;
     c[2] = (int)truncf(wy) & 127;
 
-    if (!r || light < 0) {
+    if (!res_counter || light < 0) {
       light = math_max(
         calculate_light(
           sect,
@@ -610,7 +608,7 @@ static void draw_floor_segment(
         0.f
       );
     }
-    r = (r+1)&(SHADOW_RESOLUTION-1);
+    res_counter = (res_counter+1)&(LIGHT_RESOLUTION-1);
 
 #ifdef VECTORIZED_LIGHT_MUL
     __m128i result_i32 = _mm_cvtps_epi32(_mm_min_ps(_mm_mul_ps(_mm_set_ps(0, c[2], c[1], c[0]), _mm_set1_ps(light)), _mm_set1_ps(255.0f)));
@@ -640,7 +638,7 @@ static void draw_ceiling_segment(
     return;
   }
 
-  register uint32_t y, yz, r = from % SHADOW_RESOLUTION;
+  register uint32_t y, yz, res_counter = from % LIGHT_RESOLUTION;
   register uint32_t *p = column->buffer_start + (from*column->buffer_stride);
   register float light=-1, distance, weight, wx, wy;
   uint8_t c[3];
@@ -661,7 +659,7 @@ static void draw_ceiling_segment(
     c[0] = (int)truncf(wx) & 127;
     c[1] = (int)truncf(wy) & 127;
 
-    if (!r || light < 0) {
+    if (!res_counter || light < 0) {
       light = math_max(
         calculate_light(
           sect,
@@ -678,7 +676,7 @@ static void draw_ceiling_segment(
         0.f
       );
     }
-    r = (r+1)&(SHADOW_RESOLUTION-1);
+    res_counter = (res_counter+1)&(LIGHT_RESOLUTION-1);
 
 #ifdef VECTORIZED_LIGHT_MUL
     __m128i result_i32 = _mm_cvtps_epi32(_mm_min_ps(_mm_mul_ps(_mm_set_ps(0, c[2], c[1], c[0]), _mm_set1_ps(light)), _mm_set1_ps(255.0f)));
