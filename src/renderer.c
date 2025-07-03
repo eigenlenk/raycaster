@@ -90,6 +90,12 @@ typedef struct {
 #endif
 } line_hit;
 
+typedef enum {
+  SURFACE_WALL,
+  SURFACE_FLOOR,
+  SURFACE_CEILING
+} surface_type;
+
 #define DIMMING_DISTANCE 4096.f
 
 #if LIGHT_STEPS > 0
@@ -103,7 +109,7 @@ check_sector_visibility(renderer*, const frame_info*, sector*);
 #endif
 
 static float
-calculate_light(const sector *sect, vec3f pos, size_t, light**,
+calculate_light(const sector *sect, vec3f pos, surface_type, size_t, light**,
 #if LIGHT_STEPS > 0
   uint8_t steps
 #else
@@ -258,7 +264,7 @@ check_sector_visibility(
 #endif
 
 static float
-calculate_light(const sector *sect, vec3f pos, size_t num_lights, light **lights,
+calculate_light(const sector *sect, vec3f pos, surface_type surface_type, size_t num_lights, light **lights,
 #if LIGHT_STEPS > 0
   uint8_t steps
 #else
@@ -270,6 +276,11 @@ calculate_light(const sector *sect, vec3f pos, size_t num_lights, light **lights
   float v = sect->light, dsq;
   for (i = 0; i < num_lights; ++i) {
     lt = lights[i];
+    if (surface_type != SURFACE_WALL &&
+        ((surface_type == SURFACE_FLOOR && pos.z < sect->floor_height)
+          || (surface_type == SURFACE_CEILING && pos.z > sect->ceiling_height))) {
+      continue;
+    }
     dsq = math_vec3_distance_squared(pos, lt->position);
     if (dsq > lt->radius_sq) {
       continue;
@@ -510,7 +521,8 @@ static void draw_wall_segment(
     light = math_max(
       calculate_light(
         sect,
-        VEC3F(hit->point.x, hit->point.y, -wz),
+        VEC3F(hit->point.x, hit->point.y, -tex_pos),
+        SURFACE_WALL,
         hit->line->lights_count[side],
         hit->line->lights[side],
 #if LIGHT_STEPS > 0
@@ -576,6 +588,7 @@ static void draw_floor_segment(
       calculate_light(
         sect,
         VEC3F(wx, wy, sect->floor_height),
+        SURFACE_FLOOR,
         sect->lights_count,
         ((sector*)sect)->lights,
 #if LIGHT_STEPS > 0
@@ -640,6 +653,7 @@ static void draw_ceiling_segment(
       calculate_light(
         sect,
         VEC3F(wx, wy, sect->ceiling_height),
+        SURFACE_CEILING,
         sect->lights_count,
         ((sector*)sect)->lights,
 #if LIGHT_STEPS > 0
