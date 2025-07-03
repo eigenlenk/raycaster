@@ -129,7 +129,7 @@ int main(int argc, char **argv)
       "-DLINE_VIS_CHECK",
       "-DPARALLEL_RENDERING", /* Uses OpenMP to render the screen columns in parallel */
       "-DVECTORIZED_LIGHT_MUL", /* Vectorizes light multiplication for walls, floors & ceilings */
-      "-DDYNAMIC_SHADOWS", 
+      // "-DDYNAMIC_SHADOWS", 
 
       "-o", BIN_FOLDER"demo",
 
