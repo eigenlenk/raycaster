@@ -75,7 +75,7 @@ sector* level_data_create_sector_from_polygon(level_data *this, polygon *poly)
 
   sect->floor_height = poly->floor_height;
   sect->ceiling_height = poly->ceiling_height;
-  sect->light = poly->light;
+  sect->brightness = poly->brightness;
   sect->color = sector_color++;
   sect->linedefs = NULL;
   sect->linedefs_count = 0;

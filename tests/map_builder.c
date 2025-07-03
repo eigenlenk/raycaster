@@ -26,7 +26,7 @@ TEST(map_builder, convex_polygon)
 
   TEST_ASSERT_EQUAL_INT(0, builder.polygons[0].floor_height);
   TEST_ASSERT_EQUAL_INT(128, builder.polygons[0].ceiling_height);
-  TEST_ASSERT_EQUAL_DOUBLE(1, builder.polygons[0].light);
+  TEST_ASSERT_EQUAL_DOUBLE(1, builder.polygons[0].brightness);
 
   TEST_ASSERT_EQUAL_PTR(&builder.polygons[0], map_builder_polygon_at_point(&builder, VEC2F(50, 75)));
   TEST_ASSERT_NULL(map_builder_polygon_at_point(&builder, VEC2F(-10, -10)));
@@ -73,7 +73,7 @@ TEST(map_builder, concave_polygon)
 
   TEST_ASSERT_EQUAL_INT(0, level->sectors[0].floor_height);
   TEST_ASSERT_EQUAL_INT(128, level->sectors[0].ceiling_height);
-  TEST_ASSERT_EQUAL_DOUBLE(0.5, level->sectors[0].light);
+  TEST_ASSERT_EQUAL_DOUBLE(0.5, level->sectors[0].brightness);
 
   for (i = 0; i < level->linedefs_count; ++i) {
     TEST_ASSERT_NOT_NULL(level->sectors[0].linedefs[i]->side_sector[0]); /* Front */

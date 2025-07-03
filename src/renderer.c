@@ -274,7 +274,7 @@ calculate_light(const sector *sect, vec3f pos, surface_type surface_type, size_t
 ) {
   size_t i;
   light *lt;
-  float v = sect->light, dsq;
+  float v = sect->brightness, dsq;
   for (i = 0; i < num_lights; ++i) {
     lt = lights[i];
     if (surface_type != SURFACE_WALL &&

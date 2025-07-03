@@ -14,7 +14,7 @@ typedef struct sector {
   int32_t floor_height,
           ceiling_height;
   size_t linedefs_count;
-  float light;
+  float brightness;
   uint32_t color;
   uint32_t last_visibility_check_tick;
   linedef **linedefs;

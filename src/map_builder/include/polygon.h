@@ -9,7 +9,7 @@
 typedef struct polygon {
   int32_t floor_height,
           ceiling_height;
-  float light;
+  float brightness;
   size_t vertices_count;
   vec2f *vertices;
 } polygon;

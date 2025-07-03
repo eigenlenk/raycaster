@@ -153,9 +153,9 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
       }
 
       if (event->key.key == SDLK_K) {
-        cam.in_sector->light = M_MAX(0.f, cam.in_sector->light - 0.1f);
+        cam.in_sector->brightness = M_MAX(0.f, cam.in_sector->brightness - 0.1f);
       } else if (event->key.key == SDLK_L) {
-        cam.in_sector->light = M_MIN(4.f, cam.in_sector->light + 0.1f);
+        cam.in_sector->brightness = M_MIN(4.f, cam.in_sector->brightness + 0.1f);
       }
     } else if (event->type == SDL_EVENT_KEY_UP) {
       if (event->key.key == SDLK_W) { movement.forward = 0.f; }
@@ -231,7 +231,7 @@ SDL_AppIterate(void *userdata)
   SDL_RenderDebugText(sdl_renderer, 4, y, "[O P] - Zoom out/in"); y+=h;
   SDL_RenderDebugText(sdl_renderer, 4, y, "[Home End] - Raise/lower sector ceiling"); y+=h;
   SDL_RenderDebugText(sdl_renderer, 4, y, "[PgUp PgDn] - Raise/lower sector floor"); y+=h;
-  SDL_RenderDebugText(sdl_renderer, 4, y, "[K L] - Change sector light level"); y+=h;
+  SDL_RenderDebugText(sdl_renderer, 4, y, "[K L] - Change sector brightness"); y+=h;
 
   SDL_RenderPresent(sdl_renderer);
 

@@ -26,13 +26,13 @@ map_builder_add_polygon(
   map_builder *this,
   int32_t     floor_height,
   int32_t     ceiling_height,
-  float       light,
+  float       brightness,
   size_t      vertices_count,
   vec2f       vertices[]
 ) {
   map_builder_insert_polygon(
     this, this->polygons_count, floor_height, ceiling_height,
-    light, vertices_count, vertices, VEC2F_LIST
+    brightness, vertices_count, vertices, VEC2F_LIST
   );
 }
 
@@ -187,7 +187,7 @@ map_builder_step_find_polygon_intersections(map_builder *this)
               j+1,
               pj->floor_height,
               pj->ceiling_height,
-              pj->light,
+              pj->brightness,
               result.contour[ci].num_vertices,
               result.contour[ci].vertex,
               GPC_VERTEX_LIST
@@ -263,7 +263,7 @@ map_builder_insert_polygon(
   size_t      insert_index,
   int32_t     floor_height,
   int32_t     ceiling_height,
-  float       light,
+  float       brightness,
   size_t      vertices_count,
   void        *vertices,
   int         vertices_list_type
@@ -288,7 +288,7 @@ map_builder_insert_polygon(
     .vertices_count = vertices_count,
     .floor_height = floor_height,
     .ceiling_height = ceiling_height,
-    .light = light
+    .brightness = brightness
   };
 
   this->polygons[insert_index].vertices = (vec2f*)malloc(vertices_count * sizeof(vec2f));

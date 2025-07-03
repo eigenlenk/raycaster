@@ -11,7 +11,7 @@ typedef struct {
 } map_builder;
 
 void
-map_builder_add_polygon(map_builder*, int32_t floor_height, int32_t ceiling_height, float light, size_t vertices_count, vec2f vertices[]);
+map_builder_add_polygon(map_builder*, int32_t floor_height, int32_t ceiling_height, float brightness, size_t vertices_count, vec2f vertices[]);
 
 struct level_data*
 map_builder_build(map_builder*);
