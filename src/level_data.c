@@ -165,7 +165,7 @@ sector_visited(sector *sect, size_t *n, sector **history)
     }
   }
   history[*n] = sect;
-  *n = *n+1;
+  *n += 1;
   return false;
 }
 
