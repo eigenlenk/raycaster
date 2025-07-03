@@ -17,6 +17,8 @@ SDL_Texture *texture = NULL;
 static renderer rend;
 static camera cam;
 static level_data *demo_level = NULL;
+static light *dynamic_light = NULL;
+static float light_z;
 static uint64_t last_ticks;
 static float delta_time;
 static const int initial_window_width = 1024,
@@ -189,6 +191,10 @@ SDL_AppResult SDL_AppIterate(void *userdata)
     fps_update_timer = 0.f;
   } else {
     fps_update_timer += delta_time;
+  }
+
+  if (dynamic_light) {
+    dynamic_light->position.z = light_z + sin((now_ticks/30) * M_PI / 180.0) * 48;  
   }
 
   // SDL_ClearSurface(window_surface, 0, 0, 0, 1.f);
@@ -437,7 +443,8 @@ static void create_semi_intersecting_sectors()
 
   demo_level = map_builder_build(&builder);
 
-  level_data_add_light(demo_level, VEC3F(250, 150, 64), 300, 1.0f);
+  dynamic_light = level_data_add_light(demo_level, VEC3F(280, 200, 64), 250, 1.0f);
+  light_z = dynamic_light->position.z;
 
   map_builder_free(&builder);
 }
@@ -463,7 +470,8 @@ static void create_crossing_and_splitting_sectors()
 
   demo_level = map_builder_build(&builder);
 
-  level_data_add_light(demo_level, VEC3F(250, 50, 64), 200, 0.5f);
+  dynamic_light = level_data_add_light(demo_level, VEC3F(250, 50, 64), 200, 0.5f);
+  light_z = dynamic_light->position.z;
 
   map_builder_free(&builder);
 }

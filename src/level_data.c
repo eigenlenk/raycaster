@@ -97,7 +97,7 @@ sector* level_data_create_sector_from_polygon(level_data *this, polygon *poly)
 
 light*
 level_data_add_light(level_data *this, vec3f pos, float r, float s) {
-  int si, li;
+  int si, li, affected_lines = 0;
   sector *sect;
   linedef *line;
   vec2f pos2d = VEC2F(pos.x, pos.y);
@@ -134,10 +134,13 @@ level_data_add_light(level_data *this, vec3f pos, float r, float s) {
         if (!linedef_contains_light(line, new_light) && line->lights_count < MAX_LIGHTS_PER_SURFACE) {
           printf("Light touches line %d of sector %d\n", li, si);
           line->lights[line->lights_count++] = new_light;
+          affected_lines++;
         }
       }
     }
   }
+
+  printf("New light affects %d lines.\n", affected_lines);
 
   return new_light;
 }
