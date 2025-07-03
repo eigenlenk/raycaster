@@ -177,7 +177,8 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
     return SDL_APP_CONTINUE;
 }
 
-SDL_AppResult SDL_AppIterate(void *userdata)
+SDL_AppResult
+SDL_AppIterate(void *userdata)
 {
   static char debug_buffer[64];
   static float fps_update_timer = 0.5f;
@@ -193,22 +194,24 @@ SDL_AppResult SDL_AppIterate(void *userdata)
     fps_update_timer += delta_time;
   }
 
-  /*if (dynamic_light) {
-    dynamic_light->position.z = light_z + sin((now_ticks/30) * M_PI / 180.0) * light_movement_range;  
-  }*/
+  if (dynamic_light) {
+    /* Light moves up and down */
+    /*light_set_position(dynamic_light, VEC3F(
+      dynamic_light->position.x,
+      dynamic_light->position.y,
+      light_z + sin((now_ticks/30) * M_PI / 180.0) * light_movement_range
+    ));*/
 
-  // SDL_ClearSurface(window_surface, 0, 0, 0, 1.f);
+    /* Circles the light around the camera */
+    light_set_position(dynamic_light, VEC3F(
+      cam.position.x + cos((now_ticks/30) * M_PI / 180.0) * 16,
+      cam.position.y + sin((now_ticks/30) * M_PI / 180.0) * 16,
+      cam.z + sin((now_ticks/30) * M_PI / 180.0) * 16
+    ));
+  }
 
   process_camera_movement(delta_time);
   renderer_draw(&rend, &cam);
-
-  /*void* pixels;
-  int pitch;
-
-  if (SDL_LockTexture(texture, NULL, &pixels, &pitch)) {
-    memcpy(pixels, rend.buffer, rend.buffer_size.y*pitch);
-    SDL_UnlockTexture(texture);
-  }*/
 
   SDL_UpdateTexture(texture, NULL, rend.buffer, rend.buffer_size.x*sizeof(pixel_type));
 

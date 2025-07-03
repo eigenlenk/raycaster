@@ -284,18 +284,22 @@ calculate_light(const sector *sect, vec3f pos, surface_type surface_type, size_t
     }
 
     dsq = math_vec3_distance_squared(pos, lt->position);
+
     if (dsq > lt->radius_sq) {
       continue;
     }
+
 #ifdef DYNAMIC_SHADOWS
     if (level_data_intersect_3d(lt->level, pos, lt->position, sect)) {
       continue;
     }
 #endif
+
     v = math_max(v, lt->strength * math_min(1.f, 1.f - (dsq / lt->radius_sq)));
   }
+
 #if LIGHT_STEPS > 0
-  return (truncf(v / LIGHT_STEP_VALUE_CHANGE) * LIGHT_STEP_VALUE_CHANGE) - (steps * LIGHT_STEP_VALUE_CHANGE);
+  return ((uint8_t)(v / LIGHT_STEP_VALUE_CHANGE) * LIGHT_STEP_VALUE_CHANGE) - (steps * LIGHT_STEP_VALUE_CHANGE);
 #else
   return v - light_falloff;
 #endif
@@ -522,6 +526,7 @@ static void draw_wall_segment(
 
   for (y = from; y <= to; ++y, p += column->buffer_stride, tex_pos += texture_step) {
     c[0] = (int)floorf(tex_pos) & 127;
+
     if (!res_counter || light < 0) {
       light = math_max(
         calculate_light(
@@ -539,6 +544,7 @@ static void draw_wall_segment(
         0.f
       );
     }
+
     res_counter = (res_counter+1)&(LIGHT_RESOLUTION-1);
 
 #ifdef VECTORIZED_LIGHT_MUL

@@ -97,15 +97,6 @@ sector* level_data_create_sector_from_polygon(level_data *this, polygon *poly)
 
 light*
 level_data_add_light(level_data *this, vec3f pos, float r, float s) {
-  int si, li, side, affected_lines = 0, affected_sectors = 0;
-  float sign;
-  sector *sect;
-  linedef *line;
-  vec2f pos2d = VEC2F(pos.x, pos.y);
-#ifndef DYNAMIC_SHADOWS
-  bool sector_lit;
-#endif
-
   if (this->lights_count == 64) {
     return NULL;
   }
@@ -115,96 +106,107 @@ level_data_add_light(level_data *this, vec3f pos, float r, float s) {
   new_light->radius = r;
   new_light->radius_sq = r*r;
   new_light->strength = s;
+  new_light->level = this;
 
-#ifdef DYNAMIC_SHADOWS
-  /* Find all sectors the light circle touches */
+  level_data_update_lights(this);
+
+  return new_light;
+}
+
+void
+level_data_update_lights(level_data *this)
+{
+  int i, si, li, side;
+  float sign;
+  light *lite;
+  sector *sect;
+  linedef *line;
+  vec2f pos2d;
+  bool sector_lit;
+
   for (si = 0; si < this->sectors_count; ++si) {
     sect = &this->sectors[si];
-
-    if (sector_point_inside(sect, VEC2F(pos.x, pos.y)) && sect->lights_count < MAX_LIGHTS_PER_SURFACE) {
-      new_light->in_sector = sect;
-      sect->lights[sect->lights_count++] = new_light;
-      printf("Light inside sector %d\n", si);
-      affected_sectors++;
-    }
+    sect->lights_count = 0;
 
     for (li = 0; li < sect->linedefs_count; ++li) {
       line = sect->linedefs[li];
+      line->lights_count[0] = 0;
+      line->lights_count[1] = 0;
+    }
+  }
 
-      if (math_line_segment_point_distance(line->v0->point, line->v1->point, pos2d) <= r) {
-        if (!sector_contains_light(sect, new_light) && sect->lights_count < MAX_LIGHTS_PER_SURFACE) {
-          printf("Light intersects sector %d\n", si);
-          sect->lights[sect->lights_count++] = new_light;
-          affected_sectors++;
-        }
+  for (i = 0; i < this->lights_count; ++i) {
+    lite = &this->lights[i];
+    lite->in_sector = NULL;
 
+    pos2d = VEC2F(lite->position.x, lite->position.y);
+
+    /* Find all sectors the light circle touches */
+    for (si = 0; si < this->sectors_count; ++si) {
+      sect = &this->sectors[si];
+      sector_lit = sector_contains_light(sect, lite);
+
+      if (!lite->in_sector && sect->lights_count < MAX_LIGHTS_PER_SURFACE && sector_point_inside(sect, pos2d)) {
+        lite->in_sector = sect;
+        sect->lights[sect->lights_count++] = lite;
+        sector_lit = true;
+      }
+
+      for (li = 0; li < sect->linedefs_count; ++li) {
+        line = sect->linedefs[li];
         side = sect==line->side_sector[0]?0:1;
         sign = math_sign(line->v0->point, line->v1->point, pos2d);
 
+  #ifdef DYNAMIC_SHADOWS
+        /*
+         * In dynamic shadow mode, a surface is lightable when the line simply
+         * intersects the light circle. Pixel perfect ray check is performed
+         * in the renderer later on.
+         */
+        if (math_line_segment_point_distance(line->v0->point, line->v1->point, pos2d) <= lite->radius) {
+          if (!sector_lit && sect->lights_count < MAX_LIGHTS_PER_SURFACE) {
+            sect->lights[sect->lights_count++] = lite;
+            sector_lit = true;
+          }
+
+          if ((side == 0 ? (sign < 0) : (sign > 0)) &&
+              line->lights_count[side] < MAX_LIGHTS_PER_SURFACE &&
+              !linedef_contains_light(line, side, lite)
+          ) {
+            line->lights[side][line->lights_count[side]++] = lite;
+          }
+        }
+  #else
+        /*
+         * In non-shadowed version, a surface is lightable when any of its
+         * vertices has a line of sight to the light.
+         */
+
+        /* 1 - Check floor polygon vertices */
+        if (!sector_lit && sect->lights_count < MAX_LIGHTS_PER_SURFACE) {
+          if (!level_data_intersect_3d(this, VEC3F(line->v0->point.x, line->v0->point.y, sect->floor_height), lite->position, sect)) {
+            sect->lights[sect->lights_count++] = lite;
+            sector_lit = true;
+          }
+        }
+
+        /* 2 - Check four corners of the wall */
         if ((side == 0 ? (sign < 0) : (sign > 0)) &&
             line->lights_count[side] < MAX_LIGHTS_PER_SURFACE &&
-            !linedef_contains_light(line, side, new_light)
+            !linedef_contains_light(line, side, lite)
         ) {
-          printf("Light touches line %d side %d of sector %d\n", li, side, si);
-          line->lights[side][line->lights_count[side]++] = new_light;
-          affected_lines++;
+          if (!level_data_intersect_3d(this, VEC3F(line->v0->point.x, line->v0->point.y, sect->floor_height), lite->position, sect) ||
+              !level_data_intersect_3d(this, VEC3F(line->v1->point.x, line->v1->point.y, sect->floor_height), lite->position, sect) ||
+              !level_data_intersect_3d(this, VEC3F(line->v0->point.x, line->v0->point.y, sect->ceiling_height), lite->position, sect) ||
+              !level_data_intersect_3d(this, VEC3F(line->v0->point.x, line->v0->point.y, sect->ceiling_height), lite->position, sect
+          )) {
+            line->lights[side][line->lights_count[side]++] = lite;
+          }
         }
+  #endif
       }
     }
   }
-#else
-  /* Find all sectors the light circle touches */
-  for (si = 0; si < this->sectors_count; ++si) {
-    sect = &this->sectors[si];
-    sector_lit = sector_contains_light(sect, new_light);
-
-    if (!new_light->in_sector && sect->lights_count < MAX_LIGHTS_PER_SURFACE && sector_point_inside(sect, VEC2F(pos.x, pos.y))) {
-      new_light->in_sector = sect;
-      sect->lights[sect->lights_count++] = new_light;
-      sector_lit = true;
-      affected_sectors++;
-      printf("Light inside sector %d\n", si);
-    }
-
-    /* In non-shadowed version, a surface is lightable when any of its vertices has a line of sigth to the light */
-    for (li = 0; li < sect->linedefs_count; ++li) {
-      line = sect->linedefs[li];
-
-      /* Check floor vertices */
-      if (!sector_lit && sect->lights_count < MAX_LIGHTS_PER_SURFACE) {
-        if (!level_data_intersect_3d(this, VEC3F(line->v0->point.x, line->v0->point.y, sect->floor_height), pos, sect)) {
-          sect->lights[sect->lights_count++] = new_light;
-          sector_lit = true;
-          affected_sectors++;
-          printf("Light intersects sector %d\n", si);
-        }
-      }
-
-      /* Check 4 corners of the wall */
-      side = sect==line->side_sector[0]?0:1;
-      sign = math_sign(line->v0->point, line->v1->point, pos2d);
-
-      if ((side == 0 ? (sign < 0) : (sign > 0)) &&
-          line->lights_count[side] < MAX_LIGHTS_PER_SURFACE &&
-          !linedef_contains_light(line, side, new_light)
-      ) {
-        if (!level_data_intersect_3d(this, VEC3F(line->v0->point.x, line->v0->point.y, sect->floor_height), pos, sect) ||
-            !level_data_intersect_3d(this, VEC3F(line->v1->point.x, line->v1->point.y, sect->floor_height), pos, sect) ||
-            !level_data_intersect_3d(this, VEC3F(line->v0->point.x, line->v0->point.y, sect->ceiling_height), pos, sect) ||
-            !level_data_intersect_3d(this, VEC3F(line->v0->point.x, line->v0->point.y, sect->ceiling_height), pos, sect
-        )) {
-          printf("Light touches line %d side %d of sector %d\n", li, side, si);
-          line->lights[side][line->lights_count[side]++] = new_light;
-          affected_lines++;
-        }
-      }
-    }
-  }
-#endif
-
-  printf("New light affects %d lines and %d sectors.\n", affected_lines, affected_sectors);
-
-  return new_light;
 }
 
 M_INLINED bool

@@ -125,11 +125,11 @@ int main(int argc, char **argv)
       "-I"DEPS_FOLDER"gpc",
       
       "-DDEBUG",
-      "-DLIGHT_STEPS=16", /* 0 = smooth light falloff */
+      "-DLIGHT_STEPS=0", /* 0 = smooth light falloff */
       "-DLINE_VIS_CHECK",
       "-DPARALLEL_RENDERING", /* Uses OpenMP to render the screen columns in parallel */
       "-DVECTORIZED_LIGHT_MUL", /* Vectorizes light multiplication for walls, floors & ceilings */
-      // "-DDYNAMIC_SHADOWS", 
+      "-DDYNAMIC_SHADOWS", 
 
       "-o", BIN_FOLDER"demo",
 

@@ -29,6 +29,9 @@ level_data_create_sector_from_polygon(level_data*, struct polygon*);
 light*
 level_data_add_light(level_data*, vec3f, float, float);
 
+void
+level_data_update_lights(level_data*);
+
 bool
 level_data_intersect_3d(const level_data*, vec3f, vec3f, const sector*);
 

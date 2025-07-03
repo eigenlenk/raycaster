@@ -47,6 +47,10 @@ M_INLINED float math_vec3_distance_squared(vec3f a, vec3f b) {
   return math_vec3_dot(vec3f_sub(b, a));
 }
 
+M_INLINED float math_vec3_distance(vec3f a, vec3f b) {
+  return sqrtf(math_vec3_dot(vec3f_sub(b, a)));
+}
+
 M_INLINED bool math_find_line_intersection(
   vec2f A,
   vec2f B,
