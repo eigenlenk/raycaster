@@ -2,8 +2,10 @@
 #define RAYCAST_RENDERER_INCLUDED
 
 #include "types.h"
+#include "texture.h"
 
 struct camera;
+struct level_data;
 
 typedef uint32_t pixel_type;
 typedef pixel_type* frame_buffer;
@@ -15,6 +17,16 @@ typedef struct {
   volatile float *depth_values;
   vec2i buffer_size;
   uint32_t tick;
+
+  struct {
+    struct level_data *level;
+    vec2f view_position,
+          far_left,
+          far_right;
+    float unit_size, view_z;
+    int32_t half_w, half_h, pitch_offset;
+    texture_ref sky_texture;
+  } frame_info;
 } renderer;
 
 void

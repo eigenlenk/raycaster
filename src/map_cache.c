@@ -178,24 +178,34 @@ collide(const map_cache *this, int x, int y, float current_z, float next_z, floa
   for (li = 0; li < cell->count; ++li) {
     line = cell->linedefs[li];
 
-    if (dz < 0) {
-      if (line->max_floor_height < next_z && line->min_ceiling_height > current_z) {
-        continue;
-      }
-    } else {
-      if (line->max_floor_height < current_z && line->min_ceiling_height > next_z) {
-        continue;
-      }
+    /* This switch mess is equivalent of the piece of code below, just void of any branching */
+    // switch (dz < 0 && line->max_floor_height < next_z && line->min_ceiling_height > current_z) {
+    // case 0: {
+    //   switch (dz > 0 && line->max_floor_height < current_z && line->min_ceiling_height > next_z) {
+    //   case 1: continue;
+    //   }
+    // } break;
+    // case 1: continue;
+    // }
+
+    // switch (math_find_line_intersection_cached(start_xy, line->v0->point, ray_dir, line->direction, NULL, &det, NULL) && det > MATHS_EPSILON) {
+    // case 1: {
+    //   z = start.z + dz*det;
+    //   switch (!line->side[1].sector || z < line->max_floor_height || z > line->min_ceiling_height) {
+    //   case 1: return true;
+    //   }
+    // } break;
+    // }
+
+    if (dz < 0 && line->max_floor_height < next_z && line->min_ceiling_height > current_z) {
+      continue;
+    } else if (dz > 0 && line->max_floor_height < current_z && line->min_ceiling_height > next_z) {
+      continue;
     }
 
     if (math_find_line_intersection_cached(start_xy, line->v0->point, ray_dir, line->direction, NULL, &det, NULL) && det > MATHS_EPSILON) {
-      if (!line->side[1].sector) {
-        return true;
-      }
-
       z = start.z + dz*det;
-
-      if (z < line->max_floor_height || z > line->min_ceiling_height) {
+      if (!line->side[1].sector || z < line->max_floor_height || z > line->min_ceiling_height) {
         return true;
       }
     }

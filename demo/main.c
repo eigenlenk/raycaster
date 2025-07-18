@@ -59,7 +59,10 @@ static void load_level(int);
 static void process_camera_movement(const float delta_time);
 
 M_INLINED void
-demo_texture_sampler(texture_ref, float, float, texture_coordinates_func, uint8_t, uint8_t*, uint8_t*);
+demo_texture_sampler_scaled(texture_ref, float, float, uint8_t, uint8_t*, uint8_t*);
+
+M_INLINED void
+demo_texture_sampler_normalized(texture_ref, float, float, uint8_t, uint8_t*, uint8_t*);
 
 #if defined(RAYCASTER_DEBUG) && !defined(RAYCASTER_PARALLEL_RENDERING)
 static void
@@ -102,7 +105,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 
   printf("sdl_renderer: %s\n", SDL_GetRendererName(sdl_renderer));
 
-  SDL_SetRenderVSync(sdl_renderer, 1);
+  SDL_SetRenderVSync(sdl_renderer, 0);
 
   renderer_init(&rend, VEC2I(initial_window_width / scale, initial_window_height / scale));
 
@@ -132,7 +135,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 
   last_ticks = SDL_GetTicks();
 
-  texture_sampler = demo_texture_sampler;
+  texture_sampler_scaled = demo_texture_sampler_scaled;
+  texture_sampler_normalized = demo_texture_sampler_normalized;
 
   return 0;
 }
@@ -681,21 +685,57 @@ load_level(int n)
   camera_init(&cam, demo_level);
 }
 
+/*
+ * Texture sampler accepting world space texture coordinates
+ * and expects texture to repeat.
+ */
 M_INLINED void
-demo_texture_sampler(
+demo_texture_sampler_scaled(
   texture_ref texture,
   float fx,
   float fy,
-  texture_coordinates_func coords,
   uint8_t mip_level,
   uint8_t *pixel,
   uint8_t *mask
 ) {
   M_UNUSED(mip_level);
-  int32_t x, y;
+
   const SDL_Surface *surface = textures[texture];
-  coords(fx, fy, surface->w, surface->h, &x, &y);
+  const int32_t x = (int32_t)floorf(fx) & (surface->w-1); // / mip_level) * mip_level;
+  const int32_t y = (int32_t)floorf(fy) & (surface->h-1); // / mip_level) * mip_level;
   const Uint8 *p = (Uint8 *)surface->pixels + y * surface->pitch + x * SDL_BYTESPERPIXEL(surface->format);
+  
+  if (pixel)
+    memcpy(pixel, p, 3);
+
+  /*
+   * Only masked textures are supported for now, so any pixel
+   * with a non-zero mask value will be drawn.
+   */
+  if (mask)
+    *mask = p[3];
+}
+
+/*
+ * Texture sampler accepting normalized texture coordinates
+ * that should be clamped at the edges.
+ */
+M_INLINED void
+demo_texture_sampler_normalized(
+  texture_ref texture,
+  float fx,
+  float fy,
+  uint8_t mip_level,
+  uint8_t *pixel,
+  uint8_t *mask
+) {
+  M_UNUSED(mip_level);
+
+  const SDL_Surface *surface = textures[texture];
+  int32_t x = (int32_t)(fx * (surface->w-1)); // / mip_level) * mip_level;
+  int32_t y = (int32_t)(fy * (surface->h-1)); // / mip_level) * mip_level;
+  const Uint8 *p = (Uint8 *)surface->pixels + y * surface->pitch + x * SDL_BYTESPERPIXEL(surface->format);
+  
   if (pixel)
     memcpy(pixel, p, 3);
 
