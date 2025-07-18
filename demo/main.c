@@ -24,6 +24,7 @@
 #define GRASS_TEXTURE 8
 #define DIRT_TEXTURE 9
 #define STONEWALL_TEXTURE 10
+#define METAL_STONE_TEXTURE 11
 
 SDL_Window* window = NULL;
 SDL_Renderer *sdl_renderer = NULL;
@@ -42,6 +43,12 @@ static int scale = 1;
 static bool fullscreen = false;
 static bool nearest = true;
 static bool info_text_visible = true;
+
+static struct {
+  sector *ref;
+  int direction, distance;
+  float timer;
+} moving_sector;
 
 static SDL_Surface *textures[32];
 
@@ -130,6 +137,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
   textures[GRASS_TEXTURE] = IMG_Load("res/grass.png");
   textures[DIRT_TEXTURE] = IMG_Load("res/dirt.png");
   textures[STONEWALL_TEXTURE] = IMG_Load("res/stonewall.png");
+  textures[METAL_STONE_TEXTURE] = IMG_Load("res/metal_stone.png");
 
   load_level(level);
 
@@ -275,6 +283,39 @@ SDL_AppIterate(void *userdata)
     ));*/
   }
 
+  if (moving_sector.ref) {
+    moving_sector.timer += delta_time;
+
+    if (moving_sector.timer >= (1.f / 30)) {
+      moving_sector.timer = 0.f;
+
+      if (moving_sector.direction == 1) {
+        if (moving_sector.ref->floor.height < moving_sector.ref->ceiling.height) {
+          moving_sector.ref->floor.height += moving_sector.direction;
+        }
+
+        if (moving_sector.ref->ceiling.height > moving_sector.ref->floor.height) {
+          moving_sector.ref->ceiling.height -= moving_sector.direction;
+        }
+
+        if (moving_sector.ref->floor.height == moving_sector.ref->ceiling.height) {
+          moving_sector.direction = (moving_sector.direction == 1) ? -1 : 1;
+        }
+      } else {
+        moving_sector.ref->floor.height += moving_sector.direction;
+        moving_sector.ref->ceiling.height -= moving_sector.direction;
+        moving_sector.distance ++;
+
+        if (moving_sector.distance >= 200) {
+          moving_sector.direction = 1;
+          moving_sector.distance = 0;
+        }
+      }
+
+      sector_update_floor_ceiling_limits(moving_sector.ref);
+    }
+  }
+
   process_camera_movement(delta_time);
   renderer_draw(&rend, &cam);
 
@@ -417,22 +458,33 @@ static void create_demo_level()
     VEC2F(0, -128)
   ));
 
-  map_builder_add_polygon(&builder, -128, 256, 0.25f, WALLTEX(STONEWALL_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
+  map_builder_add_polygon(&builder, -128, 256, 0.15f, WALLTEX(LARGE_BRICKS_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
     VEC2F(400, 400),
     VEC2F(200, 300),
     VEC2F(100, 1000),
     VEC2F(500, 1000)
   ));
 
-  map_builder_add_polygon(&builder, 0, 214, 1.5f, WALLTEX(STONEWALL_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
-    VEC2F(275, 500),
-    VEC2F(325, 500),
-    VEC2F(325, 700),
-    VEC2F(275, 700)
+  map_builder_add_polygon(&builder, 0, 214, 0.15f, WALLTEX(METAL_STONE_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
+    VEC2F(260, 500),
+    VEC2F(324, 500),
+    VEC2F(324, 700),
+    VEC2F(260, 700)
   ));
 
   demo_level = map_builder_build(&builder);
   demo_level->sky_texture = SKY_TEXTURE;
+
+  moving_sector.ref = &demo_level->sectors[5];
+  moving_sector.direction = rand() % 2 ? 1 : -1;
+  moving_sector.ref->linedefs[0]->side[1].flags |= LINEDEF_PIN_BOTTOM_TEXTURE | LINEDEF_PIN_TOP_TEXTURE;
+  moving_sector.ref->linedefs[1]->side[1].flags |= LINEDEF_PIN_BOTTOM_TEXTURE | LINEDEF_PIN_TOP_TEXTURE;
+  moving_sector.ref->linedefs[2]->side[1].flags |= LINEDEF_PIN_BOTTOM_TEXTURE | LINEDEF_PIN_TOP_TEXTURE;
+  moving_sector.ref->linedefs[3]->side[1].flags |= LINEDEF_PIN_BOTTOM_TEXTURE | LINEDEF_PIN_TOP_TEXTURE;
+
+  dynamic_light = level_data_add_light(demo_level, VEC3F(200, 600, 64), 300, 1.0f);
+  light_z = dynamic_light->entity.z;
+  light_movement_range = 48;
 
   /* Configure some transparent textures */
   linedef_set_middle_texture(
@@ -672,6 +724,9 @@ load_level(int n)
   }
 
   dynamic_light = NULL;
+  moving_sector.ref = NULL;
+  moving_sector.timer = 0.f;
+  moving_sector.distance = 0;
 
   switch (n) {
   case 1: create_demo_level(); break;

@@ -15,6 +15,13 @@ typedef enum {
   LINE_TEXTURE_BOTTOM
 } linedef_side_texture;
 
+typedef enum {
+  /* Keeps top texture in place when changing ceiling height */
+  LINEDEF_PIN_TOP_TEXTURE = M_BIT(0),
+  /* Keeps bottom texture in place when changing floor height */
+  LINEDEF_PIN_BOTTOM_TEXTURE = M_BIT(1)
+} linedef_flags;
+
 typedef struct linedef_segment {
   vec2f p0, p1;
   light *lights[MAX_LIGHTS_PER_SURFACE];
@@ -27,6 +34,7 @@ typedef struct linedef {
     struct sector *sector;
     texture_ref texture[3];
     linedef_segment *segments;
+    linedef_flags flags;
   } side[2];
   vec2f direction;
   int32_t max_floor_height,

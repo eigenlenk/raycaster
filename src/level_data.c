@@ -80,13 +80,15 @@ level_data_get_linedef(level_data *this, sector *sect, vertex *v0, vertex *v1, t
       .sector = sect,
       .texture[0] = texture[0],
       .texture[1] = texture[1],
-      .texture[2] = texture[2]
+      .texture[2] = texture[2],
+      .flags = 0
     },
     .side[1] = {
       .sector = NULL,
       .texture[0] = TEXTURE_NONE,
       .texture[1] = TEXTURE_NONE,
-      .texture[2] = TEXTURE_NONE
+      .texture[2] = TEXTURE_NONE,
+      .flags = 0
     },
     .direction = vec2f_sub(v1->point, v0->point),
     .length = line_length,

@@ -397,7 +397,7 @@ draw_full_wall(const renderer *this, const ray_intersection *intersection, colum
   const float sy = ceilf(M_MAX(intersection->cz_local, column->top_limit));
   const float ey = M_CLAMP(intersection->fz_local, column->top_limit, column->bottom_limit);
 
-  draw_wall_segment(this, intersection, column, sy, ey, intersection->vz_scaled, fside->texture[LINE_TEXTURE_MIDDLE]);
+  draw_wall_segment(this, intersection, column, sy, ey, sy - this->frame_info.half_h - intersection->vz_scaled, fside->texture[LINE_TEXTURE_MIDDLE]);
   
   if (column->current_sector->ceiling.texture != TEXTURE_NONE) {
     draw_ceiling_segment(this, intersection, column, column->top_limit, M_MIN(sy, column->bottom_limit));
@@ -432,7 +432,10 @@ draw_segmented_wall(const renderer *this, const ray_intersection *intersection, 
 
   if (!back_sector_has_sky) {
     if (top_h > 0) {
-      draw_wall_segment(this, intersection, column, ts_y, te_y, intersection->vz_scaled, fside->texture[LINE_TEXTURE_TOP]);
+      const float tex_sy = fside->flags & LINEDEF_PIN_BOTTOM_TEXTURE
+        ? ts_y - top_h - this->frame_info.half_h - intersection->vz_scaled
+        : ts_y - this->frame_info.half_h - intersection->vz_scaled;
+      draw_wall_segment(this, intersection, column, ts_y, te_y, tex_sy, fside->texture[LINE_TEXTURE_TOP]);
       n_top = te_y;
     } else {
       n_top = ts_y;
@@ -440,7 +443,10 @@ draw_segmented_wall(const renderer *this, const ray_intersection *intersection, 
   }
 
   if (bottom_h > 0) {
-    draw_wall_segment(this, intersection, column, bs_y, be_y, intersection->vz_scaled, fside->texture[LINE_TEXTURE_BOTTOM]);
+    const float tex_sy = fside->flags & LINEDEF_PIN_BOTTOM_TEXTURE
+      ? bs_y + bottom_h - this->frame_info.half_h - intersection->vz_scaled
+      : bs_y - this->frame_info.half_h - intersection->vz_scaled;
+    draw_wall_segment(this, intersection, column, bs_y, be_y, tex_sy, fside->texture[LINE_TEXTURE_BOTTOM]);
     n_bottom = bs_y;
   } else {
     n_bottom = be_y;
@@ -472,7 +478,7 @@ draw_segmented_wall(const renderer *this, const ray_intersection *intersection, 
   /* Draw transparent middle texture from back to front, with overdraw for now. */
   if (fside->texture[LINE_TEXTURE_MIDDLE] != TEXTURE_NONE) {
     column->current_sector = intersection->front_sector;
-    draw_wall_segment(this, intersection, column, n_top, n_bottom, intersection->vz_scaled, fside->texture[LINE_TEXTURE_MIDDLE]);
+    draw_wall_segment(this, intersection, column, n_top, n_bottom, n_top - this->frame_info.half_h - intersection->vz_scaled, fside->texture[LINE_TEXTURE_MIDDLE]);
   }
 }
 
@@ -602,7 +608,7 @@ draw_wall_segment(
   column_info *column,
   uint32_t from,
   uint32_t to,
-  float view_z_scaled,
+  float texture_start_y,
   texture_ref texture
 ) {
   if (from >= to || texture == TEXTURE_NONE) {
@@ -613,11 +619,12 @@ draw_wall_segment(
   const float texture_step  = intersection->planar_distance / this->frame_info.unit_size;
   const float texture_x     = intersection->determinant * intersection->line->length;
   const uint16_t segment    = (uint16_t)floorf((intersection->line->segments - 1) * intersection->determinant);
+  const struct linedef_side *side = &intersection->line->side[intersection->side];
   uint32_t *p               = column->buffer_start + (from*column->buffer_stride);
   uint8_t rgb[3];
   uint8_t mask;
-  uint8_t lights_count      = intersection->line->side[intersection->side].segments[segment].lights_count;
-  struct light **lights     = intersection->line->side[intersection->side].segments[segment].lights;
+  uint8_t lights_count      = side->segments[segment].lights_count;
+  struct light **lights     = side->segments[segment].lights;
   register float light      = !lights_count ? calculate_basic_brightness(
       column->current_sector->brightness,
 #if RAYCASTER_LIGHT_STEPS > 0
@@ -625,7 +632,7 @@ draw_wall_segment(
 #else
       intersection->light_falloff
 #endif
-  ) : 0.f, texture_y        = (((float)from - this->frame_info.half_h - view_z_scaled /*+ floor_z_scaled*/) * texture_step);
+  ) : 0.f, texture_y        = (texture_start_y * texture_step);
 
 #ifdef RAYCASTER_SIMD_PIXEL_LIGHTING
   int32_t temp[4];
