@@ -452,7 +452,7 @@ draw_segmented_wall(const renderer *this, const ray_intersection *intersection, 
     n_bottom = be_y;
   }
 
-  if (intersection->front_sector->ceiling.texture != TEXTURE_NONE) {
+  if (column->current_sector->ceiling.texture != TEXTURE_NONE) {
     draw_ceiling_segment(this, intersection, column, column->top_limit, ts_y);
     if (back_sector_has_sky) {
       n_top = ts_y;
