@@ -42,6 +42,8 @@ static const int initial_window_width = 1024,
 static int scale = 1;
 static bool fullscreen = false;
 static bool nearest = true;
+static bool lock_aspect_ratio = false;
+static double aspect_ratio;
 static bool info_text_visible = true;
 
 static struct {
@@ -76,6 +78,22 @@ static void
 demo_renderer_step(const renderer*);
 #endif
 
+M_INLINED vec2i
+renderer_size_in_window(int wndw, int wndh)
+{
+  if (lock_aspect_ratio) {
+    int h = wndh / scale;
+    int w = h * aspect_ratio;
+    if (w > wndw) {
+      w = wndw;
+      h = w / aspect_ratio;
+    }
+    return VEC2I(w, h);
+  } else {
+    return VEC2I(wndw / scale, wndh / scale);
+  }
+}
+
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 {
   if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -85,6 +103,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 
   int i;
   int level = 0;
+  int vsync = 0;
 
   for (i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "-level")) {
@@ -93,6 +112,11 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
       fullscreen = true;
     } else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "-scale")) {
       scale = M_MAX(1, atoi(argv[i+1]));
+    } else if (!strcmp(argv[i], "-a") || !strcmp(argv[i], "-aspect")) {
+      lock_aspect_ratio = true;
+      aspect_ratio = (double)atoi(argv[i+1]) / atoi(argv[i+2]);
+    } else if (!strcmp(argv[i], "-vsync")) {
+      vsync = atoi(argv[i+1]);
     }
   }
 
@@ -106,15 +130,19 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
   );
 
   if (!window) {
-      SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
-      return -1;
+    SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
+    return -1;
   }
 
   printf("sdl_renderer: %s\n", SDL_GetRendererName(sdl_renderer));
 
-  SDL_SetRenderVSync(sdl_renderer, 0);
+  SDL_SetRenderVSync(sdl_renderer, vsync);
 
-  renderer_init(&rend, VEC2I(initial_window_width / scale, initial_window_height / scale));
+  renderer_init(&rend, renderer_size_in_window(initial_window_width, initial_window_height));
+
+  if (lock_aspect_ratio) {
+    SDL_SetRenderLogicalPresentation(sdl_renderer, initial_window_height * aspect_ratio, initial_window_height, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+  }
 
   if (!rend.buffer) {
     return -1;
@@ -178,7 +206,7 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
         int w, h;
         SDL_GetWindowSize(window, &w, &h);
         printf("Resize buffer to %dx%d\n", w / scale, h / scale);
-        renderer_resize(&rend, VEC2I(w / scale, h / scale));
+        renderer_resize(&rend, renderer_size_in_window(w, h));
         SDL_DestroyTexture(texture);
         texture = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, rend.buffer_size.x, rend.buffer_size.y);
         SDL_SetTextureScaleMode(texture, nearest?SDL_SCALEMODE_NEAREST:SDL_SCALEMODE_LINEAR);
@@ -241,10 +269,13 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
 
     } else if (event->type == SDL_EVENT_WINDOW_RESIZED) {
       printf("Resize buffer to %dx%d\n", event->window.data1 / scale, event->window.data2 / scale);
-      renderer_resize(&rend, VEC2I(event->window.data1 / scale, event->window.data2 / scale));
+      renderer_resize(&rend, renderer_size_in_window(event->window.data1, event->window.data2));
       SDL_DestroyTexture(texture);
       texture = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, rend.buffer_size.x, rend.buffer_size.y);
       SDL_SetTextureScaleMode(texture, nearest?SDL_SCALEMODE_NEAREST:SDL_SCALEMODE_LINEAR);
+      if (lock_aspect_ratio) {
+        SDL_SetRenderLogicalPresentation(sdl_renderer, event->window.data2*aspect_ratio, event->window.data2, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+      }
     }
 
     return SDL_APP_CONTINUE;
