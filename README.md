@@ -25,7 +25,7 @@ Once upon a time when taking part in a gamejam event I wrote a little [pseudo-3D
 ![SoftwareRenderingExample2025-07-0313-37-15-Trim-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/8ffa15b4-2766-43e5-907c-5362a0faff6d)
 > There is some support for dynamic lights but it's still quite early and inefficient at full resolution
 
-![SoftwareRenderingExample2025-07-1815-52-431-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/a7571be2-cfec-479c-90e6-e7f17f283ab3)
+![SoftwareRenderingExample2025-07-1816-14-35-Trim-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/445a1f0f-8237-496e-b86b-a6630fa80c83)
 
 ## How it works (WIP section)
 Where normal Wolfenstein-3D-like raycasters work on a 2D grid, where each cell is either empty or a wall, here we can instead think of each cell consisting of 4 vertices and 4 lines connecting them. Then you can imagine we don't have to keep those 4 points as a square, and we can reshape it as a trapezoid or a rectangle. Then you can probably imagine we can add more vertices to the polygon. And then, imagine we flip everything. Instead of looking at the shape from the outside, we step inside it and start casting rays outward. This polygon becomes a sector we're standing in. Its edges are now outer walls, and the sector itself holds values like floor and ceiling heights, lighting, and more.
