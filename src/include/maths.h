@@ -64,8 +64,21 @@ math_vec3_distance_squared(vec3f a, vec3f b) {
 }
 
 M_INLINED float
-math_vec3_distance(vec3f a, vec3f b) {
+math_vec3_distance(vec3f a, vec3f b)
+{
   return sqrtf(math_vec3_dot(vec3f_sub(b, a)));
+}
+
+M_INLINED vec2f
+math_vec2f_perpendicular(vec2f v)
+{
+  return VEC2F(v.y, -v.x);
+}
+
+M_INLINED vec2f
+math_normalize(vec2f v)
+{
+  return vec2f_div(v, math_length(v));
 }
 
 M_INLINED bool
