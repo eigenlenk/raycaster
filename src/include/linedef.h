@@ -37,6 +37,7 @@ typedef struct linedef {
     texture_ref texture[3];
     linedef_segment *segments;
     linedef_flags flags;
+    vec2f normal;
   } side[2];
   vec2f direction;
   int32_t max_floor_height,

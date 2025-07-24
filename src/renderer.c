@@ -464,7 +464,7 @@ find_sector_intersections(
 static void
 find_mirror_intersections(const renderer *this, const ray_info *ray, ray_intersection *intersection, column_info *column)
 {
-  const vec2f wall_normal = math_normalize(math_vec2f_perpendicular(intersection->line->direction));
+  const vec2f wall_normal = intersection->line->side[intersection->side].normal;
   const vec2f to_camera = vec2f_sub(ray->perspective_origin, intersection->point);
   const vec2f new_dir_norm = vec2f_sub(ray->direction_normalized, vec2f_mul(wall_normal, 2*math_dot2(ray->direction_normalized, wall_normal)));
   const vec2f new_view_dir = vec2f_sub(ray->view_direction, vec2f_mul(wall_normal, 2*math_dot2(ray->view_direction, wall_normal)));
