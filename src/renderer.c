@@ -29,7 +29,19 @@ void (*texture_sampler_normalized)(texture_ref, float, float, uint8_t, uint8_t*,
   #define INSERT_RENDER_BREAKPOINT
 #endif
 
+typedef struct ray_info {
+  vec2f start,
+        end,
+        direction,
+        direction_normalized;
+  float theta_inverse;
+} ray_info;
+
 typedef struct ray_intersection {
+  struct {
+    vec2f origin,
+          direction_normalized;
+  } ray;
   vec2f point;
   float planar_distance,
         point_distance_inverse,
@@ -50,21 +62,21 @@ typedef struct ray_intersection {
   struct ray_intersection *next;
 } ray_intersection;
 
+typedef struct ray_context {
+  size_t count;
+  const sector *sectors[MAX_SECTOR_HISTORY];
+  ray_intersection *head;
+  ray_intersection *full_wall;
+} ray_context;
+
 /* Column-specific data */
 typedef struct {
-  const sector *sector_history[MAX_SECTOR_HISTORY];
-  sector *current_sector;
-  struct {
+  struct ray_intersections {
     ray_intersection list[MAX_LINE_HITS_PER_COLUMN];
-    ray_intersection *head;
     size_t count;
   } intersections;
-  vec2f ray_start,
-        ray_end,
-        ray_direction,
-        ray_direction_unit;
-  float theta_inverse, top_limit, bottom_limit;
-  uint32_t index, sector_depth, buffer_stride;
+  float top_limit, bottom_limit;
+  uint32_t index, buffer_stride;
   pixel_type *buffer_start;
   bool finished;
 } column_info;
@@ -86,8 +98,8 @@ static const float DIMMING_DISTANCE_INVERSE = 1.f / DIMMING_DISTANCE;
   refresh_sector_visibility(const renderer*, sector*);
 #endif
 
-static void
-find_sector_intersections(const renderer*, const sector*, column_info*);
+static int
+find_sector_intersections(const renderer*, const sector*, const ray_info*, ray_context*, column_info*);
 
 static void
 draw_wall_segment(const renderer*, const ray_intersection*, column_info*, uint32_t from, uint32_t to, float, texture_ref);
@@ -108,14 +120,32 @@ static void
 draw_segmented_wall(const renderer*, const ray_intersection*, column_info*);
 
 static void
-draw_sky_segment(const renderer *this, const column_info*, uint32_t, uint32_t);
+draw_sky_segment(const renderer *this, const ray_intersection*, const column_info*, uint32_t, uint32_t);
 
-M_INLINED void init_depth_values(renderer *this) {
+M_INLINED void
+init_depth_values(renderer *this)
+{
   register size_t y, h = this->buffer_size.y;
   this->depth_values = malloc(h*sizeof(float));
   for (y = 0; y < h; ++y) {
     this->depth_values[y] = 1.f / (y+1);
   }
+}
+
+M_INLINED void
+insert_sorted(ray_intersection *value, ray_intersection **head)
+{
+  if (!*head || value->planar_distance < (*head)->planar_distance) {
+    value->next = *head;
+    *head = value;
+    return;
+  }
+  ray_intersection *cur = *head;
+  while (cur->next && cur->next->planar_distance <= value->planar_distance) {
+    cur = cur->next;
+  }
+  value->next = cur->next;
+  cur->next = value;
 }
 
 void
@@ -185,34 +215,43 @@ renderer_draw(
 #endif
   for (x = 0; x < this->buffer_size.x; ++x) {
     const float cam_x = ((x << 1) / (float)this->buffer_size.x) - 1;
-    const vec2f ray = VEC2F(
+    const vec2f ray_dir_norm = VEC2F(
       view_direction.x + (view_plane.x * cam_x),
       view_direction.y + (view_plane.y * cam_x)
     );
     const vec2f ray_end = VEC2F(
-      view_position.x + (ray.x * RENDERER_DRAW_DISTANCE),
-      view_position.y + (ray.y * RENDERER_DRAW_DISTANCE)
+      view_position.x + (ray_dir_norm.x * RENDERER_DRAW_DISTANCE),
+      view_position.y + (ray_dir_norm.y * RENDERER_DRAW_DISTANCE)
     );
 
     column_info column = (column_info) {
-      .current_sector = root_sector,
-      .ray_start = view_position,
-      .ray_end = ray_end,
-      .ray_direction = vec2f_sub(ray_end, view_position),
-      .ray_direction_unit = ray,
       .index = x,
-      .intersections = { .count = 0, .head = NULL },
-      .sector_depth = 0,
+      .intersections = { .count = 0 },
       .buffer_stride = this->buffer_size.x,
-      .theta_inverse = 1.f / math_dot2(view_direction, ray),
       .top_limit = 0.f,
       .bottom_limit = this->buffer_size.y,
       .buffer_start = &this->buffer[x],
       .finished = false
     };
 
-    find_sector_intersections(this, root_sector, &column);
-    draw_column_intersection(this, column.intersections.head, &column);
+    ray_context context = { 0 };
+
+    ray_info ray = (ray_info) {
+      .start = view_position,
+      .end = ray_end,
+      .direction = vec2f_sub(ray_end, view_position),
+      .direction_normalized = ray_dir_norm,
+      .theta_inverse = 1.f / math_dot2(view_direction, ray_dir_norm)
+    };
+
+    find_sector_intersections(this, root_sector, &ray, &context, &column);
+    
+    if (context.full_wall) {
+      insert_sorted(context.full_wall, &context.head);
+      context.full_wall->next = NULL;
+    }
+    
+    draw_column_intersection(this, context.head, &column);
   }
 
 #if defined(RAYCASTER_DEBUG) && !defined(RAYCASTER_PARALLEL_RENDERING)
@@ -230,8 +269,6 @@ refresh_sector_visibility(
   sector *sect
 ) {
   register size_t i;
-  float sign;
-  uint8_t side;
   linedef *line;
   sector *back_sector;
 
@@ -244,12 +281,6 @@ refresh_sector_visibility(
 
   for (i = 0; i < sect->linedefs_count; ++i) {
     line = sect->linedefs[i];
-    side = line->side[0].sector == sect ? 0 : 1;
-    sign = math_sign(line->v0->point, line->v1->point, this->frame_info.view_position);
-
-    if ((side == 0 && sign > 0) || (side == 1 && sign < 0)) {
-      continue;
-    }
 
     if (line->v0->last_visibility_check_tick != this->tick) {
       line->v0->last_visibility_check_tick = this->tick;
@@ -276,46 +307,34 @@ refresh_sector_visibility(
 
 #endif
 
-M_INLINED void
-insert_sorted(ray_intersection *value, ray_intersection **head)
-{
-  if (!*head || value->planar_distance < (*head)->planar_distance) {
-    value->next = *head;
-    *head = value;
-    return;
-  }
-  ray_intersection *cur = *head;
-  while (cur->next && cur->next->planar_distance <= value->planar_distance) {
-    cur = cur->next;
-  }
-  value->next = cur->next;
-  cur->next = value;
-}
-
-static void
+static int
 find_sector_intersections(
   const renderer *this,
   const sector *sect,
+  const ray_info *ray,
+  ray_context *context,
   column_info *column
 ) {
   register size_t i;
   float planar_distance, point_distance,
     line_det, ray_det,
-    depth_scale_factor, cz_scaled, fz_scaled, vz_scaled;
+    depth_scale_factor, cz_scaled, fz_scaled, vz_scaled,
+    sign;
   vec2f point;
+  int side, result_count = 0;
   linedef *line;
-
-  if (column->sector_depth == MAX_SECTOR_HISTORY) {
-    return;
+  
+  if (context->count == MAX_SECTOR_HISTORY) {
+    return result_count;
   }
 
-  for (i = 0; i < column->sector_depth; ++i) {
-    if (column->sector_history[i] == sect) {
-      return;
+  for (i = 0; i < context->count; ++i) {
+    if (context->sectors[i] == sect) {
+      return result_count;
     }
   }
 
-  column->sector_history[column->sector_depth++] = sect;
+  context->sectors[context->count++] = sect;
 
   size_t insert_index;
   sector *back_sector;
@@ -328,18 +347,30 @@ find_sector_intersections(
     line = sect->linedefs[i];
 #endif
 
-    if (math_find_line_intersection_cached(line->v0->point, column->ray_start, line->direction, column->ray_direction, &point, &line_det, &ray_det)) {
+    side = line->side[0].sector == sect ? 0 : 1;
+    sign = math_sign(line->v0->point, line->v1->point, ray->start);
+
+    if ((side == 0 && sign > 0) || (side == 1 && sign < 0)) {
+      continue;
+    }
+
+    if (math_find_line_intersection_cached(line->v0->point, ray->start, line->direction, ray->direction, &point, &line_det, &ray_det)) {
       planar_distance = ray_det * RENDERER_DRAW_DISTANCE;
-      point_distance = planar_distance * column->theta_inverse;
+      point_distance = planar_distance * ray->theta_inverse;
 
       depth_scale_factor = this->frame_info.unit_size / planar_distance;
       cz_scaled = sect->ceiling.height * depth_scale_factor;
       fz_scaled = sect->floor.height * depth_scale_factor;
       vz_scaled = this->frame_info.view_z * depth_scale_factor;
 
+      result_count ++;
       insert_index = column->intersections.count++;
 
       column->intersections.list[insert_index] = (ray_intersection) {
+        .ray = {
+          .origin = ray->start,
+          .direction_normalized = ray->direction_normalized
+        },
         .point = point,
         .planar_distance = planar_distance,
         .point_distance_inverse = 1.f / point_distance,
@@ -352,8 +383,8 @@ find_sector_intersections(
         .determinant = line_det,
         .line = line,
         .front_sector = (sector*)sect,
-        .back_sector = line->side[line->side[0].sector==sect?1:0].sector,
-        .side = line->side[0].sector == sect ? 0 : 1,
+        .back_sector = line->side[!side].sector,
+        .side = side,
         .distance_steps = (uint8_t)(point_distance * LIGHT_STEP_DISTANCE_INVERSE),
 #if !defined RAYCASTER_LIGHT_STEPS || (RAYCASTER_LIGHT_STEPS == 0)
         .light_falloff = point_distance * DIMMING_DISTANCE_INVERSE,
@@ -361,16 +392,18 @@ find_sector_intersections(
         .next = NULL
       };
 
-      insert_sorted(
-        &column->intersections.list[insert_index],
-        &column->intersections.head
-      );
-
-      if ((back_sector = line->side[0].sector == sect ? line->side[1].sector : line->side[0].sector)) {
-        find_sector_intersections(this, back_sector, column);
+      if ((back_sector = line->side[!side].sector)) {
+        if (!context->full_wall || planar_distance < context->full_wall->planar_distance) {
+          insert_sorted(&column->intersections.list[insert_index], &context->head);
+          result_count += find_sector_intersections(this, back_sector, ray, context, column);
+        }
+      } else if (!context->full_wall || planar_distance < context->full_wall->planar_distance) {
+        context->full_wall = &column->intersections.list[insert_index];
       }
     }
   }
+  
+  return result_count;
 }
 
 static void
@@ -383,10 +416,10 @@ draw_column_intersection(
     return;
   }
 
-  if (!intersection->back_sector) {
-    draw_full_wall(this, intersection, column);
-  } else {
+  if (intersection->next) {
     draw_segmented_wall(this, intersection, column);
+  } else {
+    draw_full_wall(this, intersection, column);
   }
 }
 
@@ -399,10 +432,10 @@ draw_full_wall(const renderer *this, const ray_intersection *intersection, colum
 
   draw_wall_segment(this, intersection, column, sy, ey, sy - this->frame_info.half_h - intersection->vz_scaled, fside->texture[LINE_TEXTURE_MIDDLE]);
   
-  if (column->current_sector->ceiling.texture != TEXTURE_NONE) {
+  if (intersection->front_sector->ceiling.texture != TEXTURE_NONE) {
     draw_ceiling_segment(this, intersection, column, column->top_limit, M_MIN(sy, column->bottom_limit));
   } else {
-    draw_sky_segment(this, column, column->top_limit, M_MIN(sy, column->bottom_limit));
+    draw_sky_segment(this, intersection, column, column->top_limit, M_MIN(sy, column->bottom_limit));
   }
   
   draw_floor_segment(this, intersection, column, ey, column->bottom_limit);
@@ -452,13 +485,13 @@ draw_segmented_wall(const renderer *this, const ray_intersection *intersection, 
     n_bottom = be_y;
   }
 
-  if (column->current_sector->ceiling.texture != TEXTURE_NONE) {
+  if (intersection->front_sector->ceiling.texture != TEXTURE_NONE) {
     draw_ceiling_segment(this, intersection, column, column->top_limit, ts_y);
     if (back_sector_has_sky) {
       n_top = ts_y;
     }
   } else {
-    draw_sky_segment(this, column, column->top_limit, M_MAX(ts_y, column->top_limit));
+    draw_sky_segment(this, intersection, column, column->top_limit, M_MAX(ts_y, column->top_limit));
   }
     
   draw_floor_segment(this, intersection, column, be_y, column->bottom_limit);
@@ -472,12 +505,10 @@ draw_segmented_wall(const renderer *this, const ray_intersection *intersection, 
   }
 
   /* Render next ray intersection */
-  column->current_sector = intersection->back_sector;
   draw_column_intersection(this, intersection->next, column);
 
   /* Draw transparent middle texture from back to front, with overdraw for now. */
   if (fside->texture[LINE_TEXTURE_MIDDLE] != TEXTURE_NONE) {
-    column->current_sector = intersection->front_sector;
     draw_wall_segment(this, intersection, column, n_top, n_bottom, n_top - this->frame_info.half_h - intersection->vz_scaled, fside->texture[LINE_TEXTURE_MIDDLE]);
   }
 }
@@ -626,7 +657,7 @@ draw_wall_segment(
   uint8_t lights_count      = side->segments[segment].lights_count;
   struct light **lights     = side->segments[segment].lights;
   register float light      = !lights_count ? calculate_basic_brightness(
-      column->current_sector->brightness,
+      intersection->front_sector->brightness,
 #if RAYCASTER_LIGHT_STEPS > 0
       intersection->distance_steps
 #else
@@ -645,7 +676,7 @@ draw_wall_segment(
 
     light = lights_count ?
       calculate_vertical_surface_light(
-        column->current_sector,
+        intersection->front_sector,
         VEC3F(intersection->point.x, intersection->point.y, -texture_y),
         lights_count,
         lights,
@@ -676,14 +707,14 @@ draw_floor_segment(
   uint32_t to
 ) {
   if (from >= to ||
-      this->frame_info.view_z < column->current_sector->floor.height ||
-      column->current_sector->floor.texture == TEXTURE_NONE) {
+      this->frame_info.view_z < intersection->front_sector->floor.height ||
+      intersection->front_sector->floor.texture == TEXTURE_NONE) {
     return;
   }
 
   register uint32_t y, yz;
   register float light=-1, distance, weight, wx, wy;
-  const float distance_from_view = (this->frame_info.view_z - column->current_sector->floor.height) * this->frame_info.unit_size;
+  const float distance_from_view = (this->frame_info.view_z - intersection->front_sector->floor.height) * this->frame_info.unit_size;
   uint32_t *p = column->buffer_start + (from*column->buffer_stride);
   uint8_t rgb[3], lights_count;
   map_cache_cell *cell;
@@ -693,18 +724,18 @@ draw_floor_segment(
 #endif
 
   for (y = from, yz = from - this->frame_info.half_h; y < to; ++y, p += column->buffer_stride) {
-    distance = (distance_from_view * this->depth_values[yz++]) * column->theta_inverse;
+    distance = (distance_from_view * this->depth_values[yz++]);
     weight = math_min(1.f, distance * intersection->point_distance_inverse);
-    wx = (weight * intersection->point.x) + ((1-weight) * column->ray_start.x);
-    wy = (weight * intersection->point.y) + ((1-weight) * column->ray_start.y);
+    wx = (weight * intersection->point.x) + ((1-weight) * intersection->ray.origin.x);
+    wy = (weight * intersection->point.y) + ((1-weight) * intersection->ray.origin.y);
     cell = map_cache_cell_at(&this->frame_info.level->cache, VEC2F(wx, wy));
     lights_count = cell ? cell->lights_count : 0;
 
-    texture_sampler_scaled(column->current_sector->floor.texture, wx, wy, 1 + (uint8_t)(distance * LIGHT_STEP_DISTANCE_INVERSE), &rgb[0], NULL);
+    texture_sampler_scaled(intersection->front_sector->floor.texture, wx, wy, 1 + (uint8_t)(distance * LIGHT_STEP_DISTANCE_INVERSE), &rgb[0], NULL);
 
     light = lights_count ? calculate_horizontal_surface_light(
-      column->current_sector,
-      VEC3F(wx, wy, column->current_sector->floor.height),
+      intersection->front_sector,
+      VEC3F(wx, wy, intersection->front_sector->floor.height),
       true,
       lights_count,
       cell ? cell->lights : NULL,
@@ -714,7 +745,7 @@ draw_floor_segment(
       distance * DIMMING_DISTANCE_INVERSE
 #endif
     ) : calculate_basic_brightness(
-      column->current_sector->brightness,
+      intersection->front_sector->brightness,
 #if RAYCASTER_LIGHT_STEPS > 0
       distance * LIGHT_STEP_DISTANCE_INVERSE
 #else
@@ -742,13 +773,13 @@ draw_ceiling_segment(
   uint32_t to
 ) {
   /* Camera above the ceiling */
-  if (from >= to || this->frame_info.view_z > column->current_sector->ceiling.height) {
+  if (from >= to || this->frame_info.view_z > intersection->front_sector->ceiling.height) {
     return;
   }
 
   register uint32_t y, yz;
   register float light=-1, distance, weight, wx, wy;
-  const float distance_from_view = (column->current_sector->ceiling.height - this->frame_info.view_z) * this->frame_info.unit_size;
+  const float distance_from_view = (intersection->front_sector->ceiling.height - this->frame_info.view_z) * this->frame_info.unit_size;
   uint32_t *p = column->buffer_start + (from*column->buffer_stride);
   uint8_t rgb[3], lights_count;
   map_cache_cell *cell;
@@ -758,18 +789,18 @@ draw_ceiling_segment(
 #endif
 
   for (y = from, yz = this->frame_info.half_h - from - 1; y < to; ++y, p += column->buffer_stride) {
-    distance = (distance_from_view * this->depth_values[yz--]) * column->theta_inverse;
+    distance = (distance_from_view * this->depth_values[yz--]);
     weight = math_min(1.f, distance * intersection->point_distance_inverse);
-    wx = (weight * intersection->point.x) + ((1-weight) * column->ray_start.x);
-    wy = (weight * intersection->point.y) + ((1-weight) * column->ray_start.y);
+    wx = (weight * intersection->point.x) + ((1-weight) * intersection->ray.origin.x);
+    wy = (weight * intersection->point.y) + ((1-weight) * intersection->ray.origin.y);
     cell = map_cache_cell_at(&this->frame_info.level->cache, VEC2F(wx, wy));
     lights_count = cell ? cell->lights_count : 0;
 
-    texture_sampler_scaled(column->current_sector->ceiling.texture, wx, wy, 1 + (uint8_t)(distance * LIGHT_STEP_DISTANCE_INVERSE), &rgb[0], NULL);
+    texture_sampler_scaled(intersection->front_sector->ceiling.texture, wx, wy, 1 + (uint8_t)(distance * LIGHT_STEP_DISTANCE_INVERSE), &rgb[0], NULL);
 
     light = lights_count ? calculate_horizontal_surface_light(
-      column->current_sector,
-      VEC3F(wx, wy, column->current_sector->ceiling.height),
+      intersection->front_sector,
+      VEC3F(wx, wy, intersection->front_sector->ceiling.height),
       false,
       lights_count,
       cell ? cell->lights : NULL,
@@ -779,7 +810,7 @@ draw_ceiling_segment(
       distance * DIMMING_DISTANCE_INVERSE
 #endif
     ) : calculate_basic_brightness(
-      column->current_sector->brightness,
+      intersection->front_sector->brightness,
 #if RAYCASTER_LIGHT_STEPS > 0
       distance * LIGHT_STEP_DISTANCE_INVERSE
 #else
@@ -799,7 +830,7 @@ draw_ceiling_segment(
 }
 
 static void
-draw_sky_segment(const renderer *this, const column_info *column, uint32_t from, uint32_t to)
+draw_sky_segment(const renderer *this, const ray_intersection *intersection, const column_info *column, uint32_t from, uint32_t to)
 {
   if (from == to || this->frame_info.sky_texture == TEXTURE_NONE) {
     return;
@@ -807,7 +838,7 @@ draw_sky_segment(const renderer *this, const column_info *column, uint32_t from,
 
   register uint16_t y;
   uint8_t rgb[3];
-  float angle = atan2f(column->ray_direction_unit.x, column->ray_direction_unit.y) * (180.0f / M_PI);
+  float angle = atan2f(intersection->ray.direction_normalized.x, intersection->ray.direction_normalized.y) * (180.0f / M_PI);
   if (angle < 0.0f) {
     angle += 360.0f;
   }
