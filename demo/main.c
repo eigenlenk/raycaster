@@ -25,6 +25,7 @@
 #define DIRT_TEXTURE 9
 #define STONEWALL_TEXTURE 10
 #define METAL_STONE_TEXTURE 11
+#define MIRROR_TEXTURE 12
 
 SDL_Window* window = NULL;
 SDL_Renderer *sdl_renderer = NULL;
@@ -63,7 +64,7 @@ static void create_grid_level();
 static void create_big_one();
 static void create_semi_intersecting_sectors();
 static void create_crossing_and_splitting_sectors();
-static void create_large_sky();
+static void create_mirrors_and_large_sky();
 static void load_level(int);
 static void process_camera_movement(const float delta_time);
 
@@ -166,6 +167,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
   textures[DIRT_TEXTURE] = IMG_Load("res/dirt.png");
   textures[STONEWALL_TEXTURE] = IMG_Load("res/stonewall.png");
   textures[METAL_STONE_TEXTURE] = IMG_Load("res/metal_stone.png");
+  textures[MIRROR_TEXTURE] = IMG_Load("res/mirror.png");
 
   load_level(level);
 
@@ -513,6 +515,9 @@ static void create_demo_level()
   moving_sector.ref->linedefs[2]->side[1].flags |= LINEDEF_PIN_BOTTOM_TEXTURE | LINEDEF_PIN_TOP_TEXTURE;
   moving_sector.ref->linedefs[3]->side[1].flags |= LINEDEF_PIN_BOTTOM_TEXTURE | LINEDEF_PIN_TOP_TEXTURE;
 
+  level_data_find_linedef(demo_level, VEC2F(200, 300), VEC2F(100, 1000))->side[0].flags |= LINEDEF_MIRROR;
+  level_data_find_linedef(demo_level, VEC2F(0, -128), VEC2F(300, -256))->side[0].flags |= LINEDEF_MIRROR;
+
   dynamic_light = level_data_add_light(demo_level, VEC3F(200, 600, 64), 300, 1.0f);
   light_z = dynamic_light->entity.z;
   light_movement_range = 48;
@@ -523,6 +528,16 @@ static void create_demo_level()
     METAL_BARS
   );
 
+  linedef_set_middle_texture(
+    level_data_find_linedef(demo_level, VEC2F(200, 300), VEC2F(100, 1000)),
+    MIRROR_TEXTURE
+  );
+
+  linedef_set_middle_texture(
+    level_data_find_linedef(demo_level, VEC2F(0, -128), VEC2F(300, -256)),
+    MIRROR_TEXTURE
+  );
+  
   map_builder_free(&builder);
 }
 
@@ -699,26 +714,26 @@ create_crossing_and_splitting_sectors()
 }
 
 static void
-create_large_sky()
+create_mirrors_and_large_sky()
 {
   map_builder builder = { 0 };
 
   /* First area */
-  map_builder_add_polygon(&builder, 0, 256, 0.75f, WALLTEX(LARGE_BRICKS_TEXTURE), FLOOR_TEXTURE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 0, 256, 0.5f, WALLTEX(LARGE_BRICKS_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
     VEC2F(-500, -500),
     VEC2F(500, -500),
     VEC2F(500, 500),
     VEC2F(-500, 500)
   ));
 
-  map_builder_add_polygon(&builder, 32, 512, 1.f, WALLTEX(LARGE_BRICKS_TEXTURE), FLOOR_TEXTURE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 32, 512, 0.75f, WALLTEX(LARGE_BRICKS_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
     VEC2F(-100, -100),
     VEC2F(100, -100),
     VEC2F(100, 100),
     VEC2F(-100, 100)
   ));
 
-  map_builder_add_polygon(&builder, 192, 256, 1.f, WALLTEX(WOOD_TEXTURE), WOOD_TEXTURE, WOOD_TEXTURE, VERTICES(
+  map_builder_add_polygon(&builder, 192, 256, 1.0f, WALLTEX(WOOD_TEXTURE), WOOD_TEXTURE, WOOD_TEXTURE, VERTICES(
     VEC2F(-10, -10),
     VEC2F(10, -10),
     VEC2F(10, 10),
@@ -726,7 +741,7 @@ create_large_sky()
   ));
 
   /* Second area */
-  map_builder_add_polygon(&builder, 0, 256, 0.75f, WALLTEX(LARGE_BRICKS_TEXTURE), GRASS_TEXTURE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 0, 256, 0.85f, WALLTEX(LARGE_BRICKS_TEXTURE), GRASS_TEXTURE, TEXTURE_NONE, VERTICES(
     VEC2F(1000, -500),
     VEC2F(2000, -500),
     VEC2F(2000, 500),
@@ -743,6 +758,29 @@ create_large_sky()
 
   demo_level = map_builder_build(&builder);
   demo_level->sky_texture = SKY_TEXTURE;
+
+  level_data_find_linedef(demo_level, VEC2F(-500, -500), VEC2F(500, -500))->side[0].flags |= LINEDEF_MIRROR;
+  level_data_find_linedef(demo_level, VEC2F(-500, 500), VEC2F(500, 500))->side[0].flags |= LINEDEF_MIRROR;
+  level_data_find_linedef(demo_level, VEC2F(-500, -500), VEC2F(-500, 500))->side[0].flags |= LINEDEF_MIRROR;
+
+  linedef_set_middle_texture(
+    level_data_find_linedef(demo_level, VEC2F(-500, -500), VEC2F(500, -500)),
+    MIRROR_TEXTURE
+  );
+
+  linedef_set_middle_texture(
+    level_data_find_linedef(demo_level, VEC2F(-500, 500), VEC2F(500, 500)),
+    MIRROR_TEXTURE
+  );
+  
+  linedef_set_middle_texture(
+    level_data_find_linedef(demo_level, VEC2F(-500, -500), VEC2F(-500, 500)),
+    MIRROR_TEXTURE
+  );
+
+  dynamic_light = level_data_add_light(demo_level, VEC3F(-450, 400, 96), 250, 1.2f);
+  light_z = dynamic_light->entity.z;
+  light_movement_range = 88;
 
   map_builder_free(&builder);
 }
@@ -764,7 +802,7 @@ load_level(int n)
   case 2: create_big_one(); break;
   case 3: create_semi_intersecting_sectors(); break;
   case 4: create_crossing_and_splitting_sectors(); break;
-  case 5: create_large_sky(); break;
+  case 5: create_mirrors_and_large_sky(); break;
   default: create_grid_level(); break;
   }
   

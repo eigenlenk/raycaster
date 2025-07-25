@@ -19,7 +19,9 @@ typedef enum {
   /* Keeps top texture in place when changing ceiling height */
   LINEDEF_PIN_TOP_TEXTURE = M_BIT(0),
   /* Keeps bottom texture in place when changing floor height */
-  LINEDEF_PIN_BOTTOM_TEXTURE = M_BIT(1)
+  LINEDEF_PIN_BOTTOM_TEXTURE = M_BIT(1),
+  /* */
+  LINEDEF_MIRROR = M_BIT(2)
 } linedef_flags;
 
 typedef struct linedef_segment {
@@ -35,12 +37,16 @@ typedef struct linedef {
     texture_ref texture[3];
     linedef_segment *segments;
     linedef_flags flags;
+    vec2f normal;
   } side[2];
   vec2f direction;
   int32_t max_floor_height,
           min_ceiling_height;
   uint16_t segments;
   float length, xmin, xmax, ymin, ymax;
+#ifdef RAYCASTER_PRERENDER_VISCHECK
+  uint32_t last_visibility_check_tick;
+#endif
 } linedef;
 
 void

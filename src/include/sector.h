@@ -17,9 +17,9 @@ typedef struct sector {
   } floor, ceiling;
   size_t      linedefs_count;  
   float       brightness;
-  uint32_t    last_visibility_check_tick;
   linedef     **linedefs;
 #ifdef RAYCASTER_PRERENDER_VISCHECK
+  uint32_t    last_visibility_check_tick;
   linedef     **visible_linedefs;
   size_t      visible_linedefs_count;
 #endif

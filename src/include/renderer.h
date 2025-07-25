@@ -10,7 +10,7 @@ struct level_data;
 typedef uint32_t pixel_type;
 typedef pixel_type* frame_buffer;
 
-#define RENDERER_DRAW_DISTANCE 12000.f
+#define RENDERER_DRAW_DISTANCE 16384.f
 
 typedef struct {
   volatile frame_buffer buffer;
@@ -20,9 +20,7 @@ typedef struct {
 
   struct {
     struct level_data *level;
-    vec2f view_position,
-          far_left,
-          far_right;
+    vec2f view_position;
     float unit_size, view_z;
     int32_t half_w, half_h, pitch_offset;
     texture_ref sky_texture;

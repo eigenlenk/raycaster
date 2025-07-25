@@ -30,10 +30,12 @@ void (*texture_sampler_normalized)(texture_ref, float, float, uint8_t, uint8_t*,
 #endif
 
 typedef struct ray_info {
-  vec2f start,
+  vec2f perspective_origin,
+        start,
         end,
         direction,
-        direction_normalized;
+        direction_normalized,
+        view_direction;
   float theta_inverse;
 } ray_info;
 
@@ -51,7 +53,8 @@ typedef struct ray_intersection {
         vz_scaled,
         cz_local,
         fz_local,
-        determinant;
+        determinant,
+        ray_determinant;
   linedef *line;
   sector *front_sector, *back_sector;
   uint8_t side;
@@ -93,13 +96,20 @@ static const float LIGHT_STEP_DISTANCE_INVERSE = 1.f / (DIMMING_DISTANCE / 4);
 static const float DIMMING_DISTANCE_INVERSE = 1.f / DIMMING_DISTANCE;
 #endif
 
-#ifdef RAYCASTER_PRERENDER_VISCHECK
+#if defined(RAYCASTER_PRERENDER_VISCHECK) && 0
+  typedef struct {
+    vec2f position, far_left, far_right;
+  } visibility_viewpoint;
+
   static void
-  refresh_sector_visibility(const renderer*, sector*);
+  refresh_sector_visibility(const renderer*, const visibility_viewpoint*, sector*);
 #endif
 
 static int
-find_sector_intersections(const renderer*, const sector*, const ray_info*, ray_context*, column_info*);
+find_sector_intersections(const renderer*, const sector*, const ray_info*, ray_context*, column_info*, float);
+
+static void
+find_mirror_intersections(const renderer*, const ray_info*, ray_intersection*, column_info*);
 
 static void
 draw_wall_segment(const renderer*, const ray_intersection*, column_info*, uint32_t from, uint32_t to, float, texture_ref);
@@ -117,6 +127,9 @@ static void
 draw_full_wall(const renderer*, const ray_intersection*, column_info*);
 
 static void
+draw_mirror(const renderer*, const ray_intersection*, column_info*);
+
+static void
 draw_segmented_wall(const renderer*, const ray_intersection*, column_info*);
 
 static void
@@ -132,6 +145,7 @@ init_depth_values(renderer *this)
   }
 }
 
+/* Insert intersection into a sorted linked starting from 'head' */
 M_INLINED void
 insert_sorted(ray_intersection *value, ray_intersection **head)
 {
@@ -196,8 +210,6 @@ renderer_draw(
 
   this->frame_info.level = camera->entity.level;
   this->frame_info.view_position = view_position;
-  this->frame_info.far_left = vec2f_add(view_position, vec2f_mul(vec2f_sub(view_direction, camera->plane), RENDERER_DRAW_DISTANCE));
-  this->frame_info.far_right = vec2f_add(view_position, vec2f_mul(vec2f_add(view_direction, camera->plane), RENDERER_DRAW_DISTANCE));
   this->frame_info.half_w = this->buffer_size.x >> 1;
   this->frame_info.pitch_offset = (int32_t)floorf(camera->pitch * half_h);
   this->frame_info.half_h = half_h + this->frame_info.pitch_offset;
@@ -206,14 +218,21 @@ renderer_draw(
   this->frame_info.sky_texture = this->frame_info.level->sky_texture;
   this->tick++;
 
-#ifdef RAYCASTER_PRERENDER_VISCHECK
-  refresh_sector_visibility(this, root_sector);
+#if defined(RAYCASTER_PRERENDER_VISCHECK) && 0
+  const visibility_viewpoint viewpoint = (visibility_viewpoint) {
+    .position = view_position,
+    .far_left = vec2f_add(view_position, vec2f_mul(vec2f_sub(view_direction, camera->plane), RENDERER_DRAW_DISTANCE)),
+    .far_right = vec2f_add(view_position, vec2f_mul(vec2f_add(view_direction, camera->plane), RENDERER_DRAW_DISTANCE))
+  };
+  refresh_sector_visibility(this, &viewpoint, root_sector);
 #endif
 
 #ifdef RAYCASTER_PARALLEL_RENDERING
   #pragma omp parallel for
 #endif
   for (x = 0; x < this->buffer_size.x; ++x) {
+    int32_t y, y0, y1;
+    uint32_t *p;
     const float cam_x = ((x << 1) / (float)this->buffer_size.x) - 1;
     const vec2f ray_dir_norm = VEC2F(
       view_direction.x + (view_plane.x * cam_x),
@@ -237,21 +256,45 @@ renderer_draw(
     ray_context context = { 0 };
 
     ray_info ray = (ray_info) {
+      .perspective_origin = view_position,
       .start = view_position,
       .end = ray_end,
       .direction = vec2f_sub(ray_end, view_position),
       .direction_normalized = ray_dir_norm,
+      .view_direction = view_direction,
       .theta_inverse = 1.f / math_dot2(view_direction, ray_dir_norm)
     };
 
-    find_sector_intersections(this, root_sector, &ray, &context, &column);
+    find_sector_intersections(this, root_sector, &ray, &context, &column, 0);
     
+    /* Insert the closest full wall we found */
     if (context.full_wall) {
       insert_sorted(context.full_wall, &context.head);
-      context.full_wall->next = NULL;
+
+      if (context.full_wall->line->side[0].flags & LINEDEF_MIRROR) {
+        /*
+         * If it's a mirror, convert the ray into mirror-space and start finding additional
+         * intersections that will follow the mirror wall.
+         */
+        find_mirror_intersections(this, &ray, context.full_wall, &column);
+      } else {
+        /* Otherwise just terminate the ray here */
+        context.full_wall->next = NULL;
+      }
     }
     
     draw_column_intersection(this, context.head, &column);
+    
+    /* Fill the remainder of the column */
+    if (!column.finished) {
+      y0 = (int32_t)floorf(column.top_limit);
+      y1 = (int32_t)floorf(column.bottom_limit);
+      p = column.buffer_start + (y0 * column.buffer_stride);
+      for (y = y0; y < y1; ++y, p += column.buffer_stride) {
+        *p = 0xFF000000;
+        INSERT_RENDER_BREAKPOINT
+      }
+    }
   }
 
 #if defined(RAYCASTER_DEBUG) && !defined(RAYCASTER_PARALLEL_RENDERING)
@@ -261,11 +304,12 @@ renderer_draw(
 
 /* ----- */
 
-#ifdef RAYCASTER_PRERENDER_VISCHECK
+#if defined(RAYCASTER_PRERENDER_VISCHECK) && 0
 
 static void
 refresh_sector_visibility(
   const renderer *this,
+  const visibility_viewpoint *view,
   sector *sect
 ) {
   register size_t i;
@@ -282,26 +326,30 @@ refresh_sector_visibility(
   for (i = 0; i < sect->linedefs_count; ++i) {
     line = sect->linedefs[i];
 
-    if (line->v0->last_visibility_check_tick != this->tick) {
-      line->v0->last_visibility_check_tick = this->tick;
-      line->v0->visible = math_point_in_triangle(line->v0->point, this->frame_info.view_position, this->frame_info.far_left, this->frame_info.far_right);
-    }
-
-    if (line->v1->last_visibility_check_tick != this->tick) {
-      line->v1->last_visibility_check_tick = this->tick;
-      line->v1->visible = math_point_in_triangle(line->v1->point, this->frame_info.view_position, this->frame_info.far_left, this->frame_info.far_right);
-    }
-
-    if (line->v0->visible || line->v1->visible
-      || math_find_line_intersection(line->v0->point, line->v1->point, this->frame_info.view_position, this->frame_info.far_left, NULL, NULL)
-      || math_find_line_intersection(line->v0->point, line->v1->point, this->frame_info.view_position, this->frame_info.far_right, NULL, NULL)) {
-      sect->visible_linedefs[sect->visible_linedefs_count++] = line;
+    /*if (math_point_in_triangle(line->v0->point, view->position, view->far_left, view->far_right) ||
+        math_point_in_triangle(line->v1->point, view->position, view->far_left, view->far_right) ||
+        math_find_line_intersection(line->v0->point, line->v1->point, view->position, view->far_left, NULL, NULL) ||
+        math_find_line_intersection(line->v0->point, line->v1->point, view->position, view->far_right, NULL, NULL)
+    ) {
       back_sector = line->side[0].sector == sect ? line->side[1].sector : line->side[0].sector;
 
       if (back_sector && back_sector->last_visibility_check_tick != this->tick) {
-        refresh_sector_visibility(this, back_sector);
+        line->last_mirror_check_tick = this->tick;
+        sect->visible_linedefs[sect->visible_linedefs_count++] = line;
+        refresh_sector_visibility(this, view, back_sector);
+      } else if (line->side[0].flags & LINEDEF_MIRROR && line->last_mirror_check_tick != this->tick) {
+        sect->visible_linedefs[sect->visible_linedefs_count++] = line;
+        line->last_mirror_check_tick = this->tick;
+        const vec2f half_dir = vec2f_mul(line->direction, 0.5f);
+        const vec2f line_midpoint = vec2f_add(line->v0->point, half_dir);
+        const visibility_viewpoint mirror_viewpoint = (visibility_viewpoint) {
+          .position = line_midpoint,
+          .far_left = vec2f_add(line_midpoint, vec2f_mul(vec2f_sub(line->side[0].normal, half_dir), RENDERER_DRAW_DISTANCE)),
+          .far_right = vec2f_add(line_midpoint, vec2f_mul(vec2f_add(line->side[0].normal, half_dir), RENDERER_DRAW_DISTANCE))
+        };
+        // refresh_sector_visibility(this, &mirror_viewpoint, sect);
       }
-    }
+    }*/
   }
 }
 
@@ -313,7 +361,8 @@ find_sector_intersections(
   const sector *sect,
   const ray_info *ray,
   ray_context *context,
-  column_info *column
+  column_info *column,
+  float det_accum
 ) {
   register size_t i;
   float planar_distance, point_distance,
@@ -339,7 +388,7 @@ find_sector_intersections(
   size_t insert_index;
   sector *back_sector;
 
-#ifdef RAYCASTER_PRERENDER_VISCHECK
+#if defined(RAYCASTER_PRERENDER_VISCHECK) && 0
   for (i = 0; i < sect->visible_linedefs_count && column->intersections.count < MAX_LINE_HITS_PER_COLUMN; ++i) {
     line = sect->visible_linedefs[i];
 #else
@@ -348,14 +397,20 @@ find_sector_intersections(
 #endif
 
     side = line->side[0].sector == sect ? 0 : 1;
-    sign = math_sign(line->v0->point, line->v1->point, ray->start);
+    sign = math_sign(line->v0->point, line->v1->point, ray->perspective_origin);
 
     if ((side == 0 && sign > 0) || (side == 1 && sign < 0)) {
       continue;
     }
 
-    if (math_find_line_intersection_cached(line->v0->point, ray->start, line->direction, ray->direction, &point, &line_det, &ray_det)) {
-      planar_distance = ray_det * RENDERER_DRAW_DISTANCE;
+    if (math_find_line_intersection_cached(line->v0->point, ray->start, line->direction, ray->direction, &point, &line_det, &ray_det) && ray_det > 0) {
+      planar_distance = (det_accum + ray_det) * RENDERER_DRAW_DISTANCE;
+
+      if (planar_distance > RENDERER_DRAW_DISTANCE) {
+        break;
+      }
+
+      result_count ++;
       point_distance = planar_distance * ray->theta_inverse;
 
       depth_scale_factor = this->frame_info.unit_size / planar_distance;
@@ -368,7 +423,7 @@ find_sector_intersections(
 
       column->intersections.list[insert_index] = (ray_intersection) {
         .ray = {
-          .origin = ray->start,
+          .origin = ray->perspective_origin,
           .direction_normalized = ray->direction_normalized
         },
         .point = point,
@@ -381,6 +436,7 @@ find_sector_intersections(
         .cz_local = this->frame_info.half_h - cz_scaled + vz_scaled,
         .fz_local = this->frame_info.half_h - fz_scaled + vz_scaled,
         .determinant = line_det,
+        .ray_determinant = det_accum + ray_det,
         .line = line,
         .front_sector = (sector*)sect,
         .back_sector = line->side[!side].sector,
@@ -392,10 +448,15 @@ find_sector_intersections(
         .next = NULL
       };
 
+      /*
+       * Keep track of the closest full wall that we can find (in case of concave polygons
+       * it could be >1). That is the wall beyond nothing will be drawn and even if we find
+       * an intersection beoyond it, we can discard it.
+      */
       if ((back_sector = line->side[!side].sector)) {
         if (!context->full_wall || planar_distance < context->full_wall->planar_distance) {
           insert_sorted(&column->intersections.list[insert_index], &context->head);
-          result_count += find_sector_intersections(this, back_sector, ray, context, column);
+          result_count += find_sector_intersections(this, back_sector, ray, context, column, det_accum);
         }
       } else if (!context->full_wall || planar_distance < context->full_wall->planar_distance) {
         context->full_wall = &column->intersections.list[insert_index];
@@ -404,6 +465,65 @@ find_sector_intersections(
   }
   
   return result_count;
+}
+
+/*
+ * Convert given ray to mirror-space by reflecting the direction vectors as
+ * well as the view position. Then we start tracing a new ray until we find
+ * a terminating full wall, or another mirror surface, in which case the function
+ * is called recursively until we run out of draw distance or exceed intersections limit.
+ */
+static void
+find_mirror_intersections(const renderer *this, const ray_info *ray, ray_intersection *intersection, column_info *column)
+{
+  const vec2f wall_normal = intersection->line->side[intersection->side].normal;
+  const vec2f to_camera = vec2f_sub(ray->perspective_origin, intersection->point);
+  const vec2f new_dir_norm = vec2f_sub(ray->direction_normalized, vec2f_mul(wall_normal, 2*math_dot2(ray->direction_normalized, wall_normal)));
+  const vec2f new_view_dir = vec2f_sub(ray->view_direction, vec2f_mul(wall_normal, 2*math_dot2(ray->view_direction, wall_normal)));
+  const vec2f reflected_perspective_origin = vec2f_sub(ray->perspective_origin, vec2f_mul(wall_normal, 2*math_dot2(to_camera, wall_normal)));
+  const vec2f new_end = VEC2F(
+    intersection->point.x + (new_dir_norm.x * RENDERER_DRAW_DISTANCE),
+    intersection->point.y + (new_dir_norm.y * RENDERER_DRAW_DISTANCE)
+  );
+  
+  ray_context new_context = { 0 };
+
+  ray_info new_ray = (ray_info) {
+    .perspective_origin = reflected_perspective_origin,
+    .start = intersection->point,
+    .end = new_end,
+    .direction = vec2f_sub(new_end, intersection->point),
+    .direction_normalized = new_dir_norm,
+    .view_direction = new_view_dir,
+    .theta_inverse = 1.f / math_dot2(new_view_dir, new_dir_norm)
+  };
+  
+  if (find_sector_intersections(
+    this,
+    intersection->front_sector,
+    &new_ray,
+    &new_context,
+    column,
+    intersection->ray_determinant
+  )) {
+    intersection->next = new_context.head ? new_context.head : new_context.full_wall;
+    
+    /* Insert the closest full wall we found */
+    if (new_context.full_wall) {
+      insert_sorted(new_context.full_wall, &new_context.head);
+    
+      if (new_context.full_wall->line->side[0].flags & LINEDEF_MIRROR) {
+        /* Keep bouncing in the mirror */
+        find_mirror_intersections(this, &new_ray, new_context.full_wall, column);
+      } else {
+        /* A terminating wall appeared in the mirror */
+        new_context.full_wall->next = NULL;
+      }
+    }
+  } else {
+    /* No hits in the irror (out of intersections or draw distance). Terminate the column */
+    intersection->next = NULL;
+  }
 }
 
 static void
@@ -416,7 +536,10 @@ draw_column_intersection(
     return;
   }
 
-  if (intersection->next) {
+  /* Decide which kind of wall surface are we dealing with */
+  if (intersection->line->side[intersection->side].flags & LINEDEF_MIRROR) {
+    draw_mirror(this, intersection, column);
+  } else if (intersection->next) {
     draw_segmented_wall(this, intersection, column);
   } else {
     draw_full_wall(this, intersection, column);
@@ -441,6 +564,33 @@ draw_full_wall(const renderer *this, const ray_intersection *intersection, colum
   draw_floor_segment(this, intersection, column, ey, column->bottom_limit);
   
   column->finished = true;
+}
+
+static void
+draw_mirror(const renderer *this, const ray_intersection *intersection, column_info *column)
+{
+  const struct linedef_side *fside = &intersection->line->side[intersection->side];
+  const float sy = ceilf(M_MAX(intersection->cz_local, column->top_limit));
+  const float ey = M_CLAMP(intersection->fz_local, column->top_limit, column->bottom_limit);
+
+  if (intersection->front_sector->ceiling.texture != TEXTURE_NONE) {
+    draw_ceiling_segment(this, intersection, column, column->top_limit, M_MIN(sy, column->bottom_limit));
+  } else {
+    draw_sky_segment(this, intersection, column, column->top_limit, M_MIN(sy, column->bottom_limit));
+  }
+  
+  draw_floor_segment(this, intersection, column, ey, column->bottom_limit);
+
+  column->top_limit = sy;
+  column->bottom_limit = ey;
+
+  /* Render next ray intersection */
+  draw_column_intersection(this, intersection->next, column);
+
+  /* Draw transparent middle texture from back to front, with overdraw for now. */
+  if (fside->texture[LINE_TEXTURE_MIDDLE] != TEXTURE_NONE) {
+    draw_wall_segment(this, intersection, column, sy, ey, sy - this->frame_info.half_h - intersection->vz_scaled, fside->texture[LINE_TEXTURE_MIDDLE]);
+  }
 }
 
 static void
