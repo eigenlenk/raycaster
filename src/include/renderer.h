@@ -20,9 +20,7 @@ typedef struct {
 
   struct {
     struct level_data *level;
-    vec2f view_position,
-          far_left,
-          far_right;
+    vec2f view_position;
     float unit_size, view_z;
     int32_t half_w, half_h, pitch_offset;
     texture_ref sky_texture;

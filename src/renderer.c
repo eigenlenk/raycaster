@@ -96,9 +96,13 @@ static const float LIGHT_STEP_DISTANCE_INVERSE = 1.f / (DIMMING_DISTANCE / 4);
 static const float DIMMING_DISTANCE_INVERSE = 1.f / DIMMING_DISTANCE;
 #endif
 
-#ifdef RAYCASTER_PRERENDER_VISCHECK
+#if defined(RAYCASTER_PRERENDER_VISCHECK) && 0
+  typedef struct {
+    vec2f position, far_left, far_right;
+  } visibility_viewpoint;
+
   static void
-  refresh_sector_visibility(const renderer*, sector*);
+  refresh_sector_visibility(const renderer*, const visibility_viewpoint*, sector*);
 #endif
 
 static int
@@ -206,8 +210,6 @@ renderer_draw(
 
   this->frame_info.level = camera->entity.level;
   this->frame_info.view_position = view_position;
-  this->frame_info.far_left = vec2f_add(view_position, vec2f_mul(vec2f_sub(view_direction, camera->plane), RENDERER_DRAW_DISTANCE));
-  this->frame_info.far_right = vec2f_add(view_position, vec2f_mul(vec2f_add(view_direction, camera->plane), RENDERER_DRAW_DISTANCE));
   this->frame_info.half_w = this->buffer_size.x >> 1;
   this->frame_info.pitch_offset = (int32_t)floorf(camera->pitch * half_h);
   this->frame_info.half_h = half_h + this->frame_info.pitch_offset;
@@ -216,8 +218,13 @@ renderer_draw(
   this->frame_info.sky_texture = this->frame_info.level->sky_texture;
   this->tick++;
 
-#ifdef RAYCASTER_PRERENDER_VISCHECK
-  refresh_sector_visibility(this, root_sector);
+#if defined(RAYCASTER_PRERENDER_VISCHECK) && 0
+  const visibility_viewpoint viewpoint = (visibility_viewpoint) {
+    .position = view_position,
+    .far_left = vec2f_add(view_position, vec2f_mul(vec2f_sub(view_direction, camera->plane), RENDERER_DRAW_DISTANCE)),
+    .far_right = vec2f_add(view_position, vec2f_mul(vec2f_add(view_direction, camera->plane), RENDERER_DRAW_DISTANCE))
+  };
+  refresh_sector_visibility(this, &viewpoint, root_sector);
 #endif
 
 #ifdef RAYCASTER_PARALLEL_RENDERING
@@ -282,7 +289,7 @@ renderer_draw(
     if (!column.finished) {
       y0 = (int32_t)floorf(column.top_limit);
       y1 = (int32_t)floorf(column.bottom_limit);
-      uint32_t *p = column.buffer_start + (y0 * column.buffer_stride);
+      p = column.buffer_start + (y0 * column.buffer_stride);
       for (y = y0; y < y1; ++y, p += column.buffer_stride) {
         *p = 0xFF000000;
         INSERT_RENDER_BREAKPOINT
@@ -297,11 +304,12 @@ renderer_draw(
 
 /* ----- */
 
-#ifdef RAYCASTER_PRERENDER_VISCHECK
+#if defined(RAYCASTER_PRERENDER_VISCHECK) && 0
 
 static void
 refresh_sector_visibility(
   const renderer *this,
+  const visibility_viewpoint *view,
   sector *sect
 ) {
   register size_t i;
@@ -318,26 +326,30 @@ refresh_sector_visibility(
   for (i = 0; i < sect->linedefs_count; ++i) {
     line = sect->linedefs[i];
 
-    if (line->v0->last_visibility_check_tick != this->tick) {
-      line->v0->last_visibility_check_tick = this->tick;
-      line->v0->visible = math_point_in_triangle(line->v0->point, this->frame_info.view_position, this->frame_info.far_left, this->frame_info.far_right);
-    }
-
-    if (line->v1->last_visibility_check_tick != this->tick) {
-      line->v1->last_visibility_check_tick = this->tick;
-      line->v1->visible = math_point_in_triangle(line->v1->point, this->frame_info.view_position, this->frame_info.far_left, this->frame_info.far_right);
-    }
-
-    if (line->v0->visible || line->v1->visible
-      || math_find_line_intersection(line->v0->point, line->v1->point, this->frame_info.view_position, this->frame_info.far_left, NULL, NULL)
-      || math_find_line_intersection(line->v0->point, line->v1->point, this->frame_info.view_position, this->frame_info.far_right, NULL, NULL)) {
-      sect->visible_linedefs[sect->visible_linedefs_count++] = line;
+    /*if (math_point_in_triangle(line->v0->point, view->position, view->far_left, view->far_right) ||
+        math_point_in_triangle(line->v1->point, view->position, view->far_left, view->far_right) ||
+        math_find_line_intersection(line->v0->point, line->v1->point, view->position, view->far_left, NULL, NULL) ||
+        math_find_line_intersection(line->v0->point, line->v1->point, view->position, view->far_right, NULL, NULL)
+    ) {
       back_sector = line->side[0].sector == sect ? line->side[1].sector : line->side[0].sector;
 
       if (back_sector && back_sector->last_visibility_check_tick != this->tick) {
-        refresh_sector_visibility(this, back_sector);
+        line->last_mirror_check_tick = this->tick;
+        sect->visible_linedefs[sect->visible_linedefs_count++] = line;
+        refresh_sector_visibility(this, view, back_sector);
+      } else if (line->side[0].flags & LINEDEF_MIRROR && line->last_mirror_check_tick != this->tick) {
+        sect->visible_linedefs[sect->visible_linedefs_count++] = line;
+        line->last_mirror_check_tick = this->tick;
+        const vec2f half_dir = vec2f_mul(line->direction, 0.5f);
+        const vec2f line_midpoint = vec2f_add(line->v0->point, half_dir);
+        const visibility_viewpoint mirror_viewpoint = (visibility_viewpoint) {
+          .position = line_midpoint,
+          .far_left = vec2f_add(line_midpoint, vec2f_mul(vec2f_sub(line->side[0].normal, half_dir), RENDERER_DRAW_DISTANCE)),
+          .far_right = vec2f_add(line_midpoint, vec2f_mul(vec2f_add(line->side[0].normal, half_dir), RENDERER_DRAW_DISTANCE))
+        };
+        // refresh_sector_visibility(this, &mirror_viewpoint, sect);
       }
-    }
+    }*/
   }
 }
 
@@ -376,7 +388,7 @@ find_sector_intersections(
   size_t insert_index;
   sector *back_sector;
 
-#ifdef RAYCASTER_PRERENDER_VISCHECK
+#if defined(RAYCASTER_PRERENDER_VISCHECK) && 0
   for (i = 0; i < sect->visible_linedefs_count && column->intersections.count < MAX_LINE_HITS_PER_COLUMN; ++i) {
     line = sect->visible_linedefs[i];
 #else

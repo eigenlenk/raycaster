@@ -64,7 +64,7 @@ static void create_grid_level();
 static void create_big_one();
 static void create_semi_intersecting_sectors();
 static void create_crossing_and_splitting_sectors();
-static void create_large_sky();
+static void create_mirrors_and_large_sky();
 static void load_level(int);
 static void process_camera_movement(const float delta_time);
 
@@ -708,7 +708,7 @@ create_crossing_and_splitting_sectors()
 }
 
 static void
-create_large_sky()
+create_mirrors_and_large_sky()
 {
   map_builder builder = { 0 };
 
@@ -796,7 +796,7 @@ load_level(int n)
   case 2: create_big_one(); break;
   case 3: create_semi_intersecting_sectors(); break;
   case 4: create_crossing_and_splitting_sectors(); break;
-  case 5: create_large_sky(); break;
+  case 5: create_mirrors_and_large_sky(); break;
   default: create_grid_level(); break;
   }
   

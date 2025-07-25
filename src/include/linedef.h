@@ -44,6 +44,9 @@ typedef struct linedef {
           min_ceiling_height;
   uint16_t segments;
   float length, xmin, xmax, ymin, ymax;
+#ifdef RAYCASTER_PRERENDER_VISCHECK
+  uint32_t last_visibility_check_tick;
+#endif
 } linedef;
 
 void
