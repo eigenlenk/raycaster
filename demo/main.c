@@ -516,6 +516,7 @@ static void create_demo_level()
   moving_sector.ref->linedefs[3]->side[1].flags |= LINEDEF_PIN_BOTTOM_TEXTURE | LINEDEF_PIN_TOP_TEXTURE;
 
   level_data_find_linedef(demo_level, VEC2F(200, 300), VEC2F(100, 1000))->side[0].flags |= LINEDEF_MIRROR;
+  level_data_find_linedef(demo_level, VEC2F(0, -128), VEC2F(300, -256))->side[0].flags |= LINEDEF_MIRROR;
 
   dynamic_light = level_data_add_light(demo_level, VEC3F(200, 600, 64), 300, 1.0f);
   light_z = dynamic_light->entity.z;
@@ -532,6 +533,11 @@ static void create_demo_level()
     MIRROR_TEXTURE
   );
 
+  linedef_set_middle_texture(
+    level_data_find_linedef(demo_level, VEC2F(0, -128), VEC2F(300, -256)),
+    MIRROR_TEXTURE
+  );
+  
   map_builder_free(&builder);
 }
 
