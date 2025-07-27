@@ -17,6 +17,13 @@ set(RAYCASTER_DEFINES
   RAYCASTER_LIGHT_STEPS=${RAYCASTER_LIGHT_STEPS}
 )
 
+if (APPLE)
+  set(OpenMP_C_FLAGS "-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include")
+  set(OpenMP_C_LIB_NAMES "omp")
+  set(OpenMP_omp_LIBRARY "/opt/homebrew/opt/libomp/lib/libomp.dylib")
+  find_package(OpenMP)
+endif()
+
 # Does the demo target need these flags, or just the renderer?
 if (CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang)$")
   list(APPEND RAYCASTER_FLAGS
@@ -35,6 +42,7 @@ if (CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang)$")
     -mfpmath=sse
     $<$<BOOL:${RAYCASTER_PARALLEL_RENDERING}>:-fopenmp>
     $<$<BOOL:${RAYCASTER_PARALLEL_RENDERING}>:-fopenmp-simd>
+    $<$<AND:$<BOOL:${RAYCASTER_PARALLEL_RENDERING}>,$<BOOL:${OpenMP_C_FOUND}>>:${OpenMP_C_FLAGS}>
   )
 
 elseif (CMAKE_C_COMPILER_ID STREQUAL "MSVC")
@@ -95,6 +103,7 @@ if(UNIX OR NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
   find_library(libmath m)
 endif()
 
+
 ############
 # RENDERER #
 ############
@@ -103,6 +112,9 @@ file(GLOB_RECURSE CORE_SRC CONFIGURE_DEPENDS src/*.c deps/gpc/gpc.c)
 add_library(renderer STATIC ${CORE_SRC})
 if(libmath)
   target_link_libraries(renderer PUBLIC ${libmath})
+endif()
+if(OpenMP_C_FOUND AND RAYCASTER_PARALLEL_RENDERING)
+  target_link_libraries(renderer PUBLIC OpenMP::OpenMP_C)
 endif()
 target_include_directories(renderer
   PUBLIC
@@ -129,6 +141,10 @@ target_link_libraries(demo PRIVATE renderer SDL3::SDL3 SDL3_image::SDL3_image)
 
 if (CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang)$")
   target_link_options(demo PRIVATE $<$<BOOL:${RAYCASTER_PARALLEL_RENDERING}>:-fopenmp>)
+endif()
+
+if(OpenMP_C_FOUND AND RAYCASTER_PARALLEL_RENDERING)
+  target_link_libraries(demo PRIVATE OpenMP::OpenMP_C)
 endif()
 
 target_compile_definitions(demo PRIVATE ${RAYCASTER_DEFINES})
