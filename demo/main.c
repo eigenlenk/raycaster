@@ -95,6 +95,16 @@ renderer_size_in_window(int wndw, int wndh)
   }
 }
 
+M_INLINED SDL_PixelFormat
+renderer_pixel_format(SDL_Renderer *renderer)
+{
+  if (!strcmp("metal", SDL_GetRendererName(renderer))) {
+    return SDL_PIXELFORMAT_ABGR8888;
+  } else {
+    return SDL_PIXELFORMAT_ARGB8888;
+  }
+}
+
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 {
   if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -135,7 +145,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
     return -1;
   }
 
-  printf("sdl_renderer: %s\n", SDL_GetRendererName(sdl_renderer));
+  SDL_Log("SDL renderer: %s", SDL_GetRendererName(sdl_renderer));
 
   SDL_SetRenderVSync(sdl_renderer, vsync);
 
@@ -149,7 +159,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
     return -1;
   }
 
-  texture = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, rend.buffer_size.x, rend.buffer_size.y);
+  texture = SDL_CreateTexture(sdl_renderer, renderer_pixel_format(sdl_renderer), SDL_TEXTUREACCESS_STREAMING, rend.buffer_size.x, rend.buffer_size.y);
   
   if (!texture) return -1;
 
@@ -210,7 +220,7 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
         printf("Resize buffer to %dx%d\n", w / scale, h / scale);
         renderer_resize(&rend, renderer_size_in_window(w, h));
         SDL_DestroyTexture(texture);
-        texture = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, rend.buffer_size.x, rend.buffer_size.y);
+        texture = SDL_CreateTexture(sdl_renderer, renderer_pixel_format(sdl_renderer), SDL_TEXTUREACCESS_STREAMING, rend.buffer_size.x, rend.buffer_size.y);
         SDL_SetTextureScaleMode(texture, nearest?SDL_SCALEMODE_NEAREST:SDL_SCALEMODE_LINEAR);
       }
 
@@ -273,7 +283,7 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
       printf("Resize buffer to %dx%d\n", event->window.data1 / scale, event->window.data2 / scale);
       renderer_resize(&rend, renderer_size_in_window(event->window.data1, event->window.data2));
       SDL_DestroyTexture(texture);
-      texture = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, rend.buffer_size.x, rend.buffer_size.y);
+      texture = SDL_CreateTexture(sdl_renderer, renderer_pixel_format(sdl_renderer), SDL_TEXTUREACCESS_STREAMING, rend.buffer_size.x, rend.buffer_size.y);
       SDL_SetTextureScaleMode(texture, nearest?SDL_SCALEMODE_NEAREST:SDL_SCALEMODE_LINEAR);
       if (lock_aspect_ratio) {
         SDL_SetRenderLogicalPresentation(sdl_renderer, event->window.data2*aspect_ratio, event->window.data2, SDL_LOGICAL_PRESENTATION_LETTERBOX);
