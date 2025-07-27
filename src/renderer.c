@@ -12,8 +12,12 @@
 #endif
 
 #ifdef RAYCASTER_SIMD_PIXEL_LIGHTING
-  #include <emmintrin.h>
-  #include <xmmintrin.h>
+  #if __ARM_NEON
+    #include <arm_neon.h>
+  #else
+    #include <emmintrin.h>
+    #include <xmmintrin.h>
+  #endif
 #endif
 
 #define MAX_SECTOR_HISTORY 64
@@ -838,7 +842,11 @@ draw_wall_segment(
       ) : light;
 
 #ifdef RAYCASTER_SIMD_PIXEL_LIGHTING
+#ifdef __ARM_NEON
+    vst1q_s32(temp, vcvtq_s32_f32(vminq_f32(vmulq_f32((float32x4_t){ rgb[0], rgb[1], rgb[2] }, vdupq_n_f32(light)), vdupq_n_f32(255.0f))));
+#else
     _mm_storeu_si128((__m128i*)temp, _mm_cvtps_epi32(_mm_min_ps(_mm_mul_ps(_mm_set_ps(0, rgb[2], rgb[1], rgb[0]), _mm_set1_ps(light)), _mm_set1_ps(255.0f))));
+#endif
     *p = 0xFF000000 | (temp[0] << 16) | (temp[1] << 8) | temp[2];
 #else
     *p = 0xFF000000|((uint8_t)math_min((rgb[0]*light),255)<<16)|((uint8_t)math_min((rgb[1]*light),255)<<8)|(uint8_t)math_min((rgb[2]*light),255);
@@ -904,7 +912,11 @@ draw_floor_segment(
     );
 
 #ifdef RAYCASTER_SIMD_PIXEL_LIGHTING
+#ifdef __ARM_NEON
+    vst1q_s32(temp, vcvtq_s32_f32(vminq_f32(vmulq_f32((float32x4_t){ rgb[0], rgb[1], rgb[2] }, vdupq_n_f32(light)), vdupq_n_f32(255.0f))));
+#else
     _mm_storeu_si128((__m128i*)temp, _mm_cvtps_epi32(_mm_min_ps(_mm_mul_ps(_mm_set_ps(0, rgb[2], rgb[1], rgb[0]), _mm_set1_ps(light)), _mm_set1_ps(255.0f))));
+#endif
     *p = 0xFF000000 | (temp[0] << 16) | (temp[1] << 8) | temp[2];
 #else
     *p = 0xFF000000|((uint8_t)math_min((rgb[0]*light),255)<<16)|((uint8_t)math_min((rgb[1]*light),255)<<8)|(uint8_t)math_min((rgb[2]*light),255);
@@ -969,7 +981,11 @@ draw_ceiling_segment(
     );
 
 #ifdef RAYCASTER_SIMD_PIXEL_LIGHTING
+#ifdef __ARM_NEON
+    vst1q_s32(temp, vcvtq_s32_f32(vminq_f32(vmulq_f32((float32x4_t){ rgb[0], rgb[1], rgb[2] }, vdupq_n_f32(light)), vdupq_n_f32(255.0f))));
+#else
     _mm_storeu_si128((__m128i*)temp, _mm_cvtps_epi32(_mm_min_ps(_mm_mul_ps(_mm_set_ps(0, rgb[2], rgb[1], rgb[0]), _mm_set1_ps(light)), _mm_set1_ps(255.0f))));
+#endif
     *p = 0xFF000000 | (temp[0] << 16) | (temp[1] << 8) | temp[2];
 #else
     *p = 0xFF000000|((uint8_t)math_min((rgb[0]*light),255)<<16)|((uint8_t)math_min((rgb[1]*light),255)<<8)|(uint8_t)math_min((rgb[2]*light),255);

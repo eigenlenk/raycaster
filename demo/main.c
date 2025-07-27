@@ -132,7 +132,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
   }
 
   SDL_CreateWindowAndRenderer(
-    "Software Rendering Example",
+    "Duke Doomstein 2.5D",
     initial_window_width,
     initial_window_height,
     SDL_WINDOW_RESIZABLE | (fullscreen ? SDL_WINDOW_FULLSCREEN : 0),
