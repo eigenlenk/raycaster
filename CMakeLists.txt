@@ -18,7 +18,7 @@ set(RAYCASTER_DEFINES
 )
 
 if (APPLE)
-  set(OpenMP_C_FLAGS "-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include")
+  set(OpenMP_C_FLAGS "-I/opt/homebrew/opt/libomp/include")
   set(OpenMP_C_LIB_NAMES "omp")
   set(OpenMP_omp_LIBRARY "/opt/homebrew/opt/libomp/lib/libomp.dylib")
   find_package(OpenMP)
@@ -36,13 +36,29 @@ if (CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang)$")
     -ffast-math
     -funroll-loops
     -fomit-frame-pointer
-    # -flto
     -O3
     -msse2
     -mfpmath=sse
     $<$<BOOL:${RAYCASTER_PARALLEL_RENDERING}>:-fopenmp>
     $<$<BOOL:${RAYCASTER_PARALLEL_RENDERING}>:-fopenmp-simd>
-    $<$<AND:$<BOOL:${RAYCASTER_PARALLEL_RENDERING}>,$<BOOL:${OpenMP_C_FOUND}>>:${OpenMP_C_FLAGS}>
+  )
+
+elseif (CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
+  list(APPEND RAYCASTER_FLAGS
+    -Wall
+    -Wpedantic
+    -Wfatal-errors
+    -g
+    -ffast-math
+    -funroll-loops
+    -fomit-frame-pointer
+    -O3
+    -march=native
+    -mcpu=native
+    -flto
+    # -Rpass=loop-vectorize
+    # -Rpass-analysis=loop-vectorize
+    $<$<AND:$<BOOL:${RAYCASTER_PARALLEL_RENDERING}>,$<BOOL:${OpenMP_C_FOUND}>>:-Xclang -fopenmp ${OpenMP_C_FLAGS}>
   )
 
 elseif (CMAKE_C_COMPILER_ID STREQUAL "MSVC")
