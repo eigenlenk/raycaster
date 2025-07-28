@@ -21,7 +21,7 @@ NAME##_make(T x, T y, T z) {                                                    
 }                                                                                 \
                                                                                   \
 M_INLINED NAME                                                                    \
-NAME##_zero() {                                                                   \
+NAME##_zero(void) {                                                               \
   return (NAME){ 0 };                                                             \
 }                                                                                 \
                                                                                   \

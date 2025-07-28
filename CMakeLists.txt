@@ -56,7 +56,7 @@ elseif (CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
     -march=native
     -mcpu=native
     -flto
-    # -Rpass=loop-vectorize
+    -Rpass=loop-vectorize
     # -Rpass-analysis=loop-vectorize
     $<$<AND:$<BOOL:${RAYCASTER_PARALLEL_RENDERING}>,$<BOOL:${OpenMP_C_FOUND}>>:-Xclang -fopenmp ${OpenMP_C_FLAGS}>
   )

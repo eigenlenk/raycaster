@@ -62,7 +62,7 @@ map_builder_build(map_builder *this)
 
   /* ------------ */
  
-  IF_DEBUG(printf("2. Creating sectors and linedefs (from %d polys) ...\n", this->polygons_count));
+  IF_DEBUG(printf("2. Creating sectors and linedefs (from %lu polys) ...\n", this->polygons_count));
 
   for (i = 0; i < this->polygons_count; ++i) {
     level_data_create_sector_from_polygon(level, &this->polygons[i]);
@@ -263,7 +263,7 @@ map_builder_step_configure_back_sectors(map_builder *this, level_data *level)
         if (sector_connects_vertices(back, line->v0, line->v1)) { continue; }
        
         if (polygon_is_point_inside(&this->polygons[i], line->v0->point, false) && polygon_is_point_inside(&this->polygons[i], line->v1->point, false)) {
-          IF_DEBUG(printf("\t\tAdd contained line %d (%d,%d) <-> (%d,%d) of sector %d INTO sector %d\n", k, XY(line->v0->point), XY(line->v1->point), j, i))
+          IF_DEBUG(printf("\t\tAdd contained line %lu (%d,%d) <-> (%d,%d) of sector %d INTO sector %d\n", k, XY(line->v0->point), XY(line->v1->point), j, i))
           line->side[1].sector = back;
           line->side[1].texture[0] = line->side[0].texture[0];
           line->side[1].texture[1] = line->side[0].texture[1];
@@ -301,7 +301,7 @@ map_builder_insert_polygon(
 ) {
   size_t i;
 
-  IF_DEBUG(printf("Insert polygon (%d vertices) [%d, %d] at index %d:\n", vertices_count, floor_height, ceiling_height, insert_index))
+  IF_DEBUG(printf("Insert polygon (%lu vertices) [%d, %d] at index %lu:\n", vertices_count, floor_height, ceiling_height, insert_index))
 
   if (!this->polygons) {
     this->polygons = (polygon*)malloc(sizeof(polygon));

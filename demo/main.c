@@ -59,12 +59,12 @@ static struct {
   float forward, turn, raise, pitch;
 } movement = { 0 };
 
-static void create_demo_level();
-static void create_grid_level();
-static void create_big_one();
-static void create_semi_intersecting_sectors();
-static void create_crossing_and_splitting_sectors();
-static void create_mirrors_and_large_sky();
+static void create_demo_level(void);
+static void create_grid_level(void);
+static void create_big_one(void);
+static void create_semi_intersecting_sectors(void);
+static void create_crossing_and_splitting_sectors(void);
+static void create_mirrors_and_large_sky(void);
 static void load_level(int);
 static void process_camera_movement(const float delta_time);
 
@@ -406,7 +406,8 @@ SDL_AppIterate(void *userdata)
   return SDL_APP_CONTINUE;
 }
 
-static void process_camera_movement(const float delta_time)
+static void
+process_camera_movement(const float delta_time)
 {
   if ((int)movement.forward != 0) {
     camera_move(&cam, 400 * movement.forward * delta_time);
@@ -427,7 +428,8 @@ static void process_camera_movement(const float delta_time)
   }
 }
 
-static void create_grid_level()
+static void
+create_grid_level(void)
 {
   const int w = 24;
   const int h = 24;
@@ -468,7 +470,8 @@ static void create_grid_level()
   map_builder_free(&builder);
 }
 
-static void create_demo_level()
+static void
+create_demo_level(void)
 {
   map_builder builder = { 0 };
 
@@ -551,7 +554,8 @@ static void create_demo_level()
   map_builder_free(&builder);
 }
 
-static void create_big_one()
+static void
+create_big_one(void)
 {
   map_builder builder = { 0 };
 
@@ -595,7 +599,8 @@ static void create_big_one()
   map_builder_free(&builder);
 }
 
-static void create_semi_intersecting_sectors()
+static void
+create_semi_intersecting_sectors(void)
 {
   const float base_light = 0.25f;
 
@@ -695,7 +700,7 @@ static void create_semi_intersecting_sectors()
 }
 
 static void
-create_crossing_and_splitting_sectors()
+create_crossing_and_splitting_sectors(void)
 {
   map_builder builder = { 0 };
 
@@ -724,7 +729,7 @@ create_crossing_and_splitting_sectors()
 }
 
 static void
-create_mirrors_and_large_sky()
+create_mirrors_and_large_sky(void)
 {
   map_builder builder = { 0 };
 

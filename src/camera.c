@@ -64,7 +64,7 @@ find_current_sector(camera *this)
     // printf("Check sector %d\n", i);
     if (sector_point_inside(&this->entity.level->sectors[i], this->entity.position)) {
       this->entity.sector = (sector *)&this->entity.level->sectors[i];
-      printf("Camera entered sector: %d\n", i);
+      printf("Camera entered sector: %lu\n", i);
       break;
     }
   }
