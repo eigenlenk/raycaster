@@ -15,7 +15,7 @@ static void
 map_builder_step_configure_back_sectors(map_builder*, level_data*);
 
 static void
-map_builder_insert_polygon(map_builder*, size_t, int32_t, int32_t, float, texture_ref[], texture_ref, texture_ref, size_t, void*, int);
+map_builder_insert_polygon(map_builder*, size_t, int32_t, int32_t, float, texture_ref, texture_ref, texture_ref, texture_ref, texture_ref, size_t, void*, int);
 
 /*
  * Map data public API
@@ -34,8 +34,8 @@ map_builder_add_polygon(
   vec2f       vertices[]
 ) {
   map_builder_insert_polygon(
-    this, this->polygons_count, floor_height, ceiling_height,
-    brightness, wall_texture, floor_texture, ceiling_texture,
+    this, this->polygons_count, floor_height, ceiling_height, brightness,
+    wall_texture[0], wall_texture[1], wall_texture[2], floor_texture, ceiling_texture,
     vertices_count, vertices, VEC2F_LIST
   );
 }
@@ -200,7 +200,9 @@ map_builder_step_find_polygon_intersections(map_builder *this)
               pj->floor_height,
               pj->ceiling_height,
               pj->brightness,
-              pj->wall_texture,
+              pj->wall_texture[0],
+              pj->wall_texture[1],
+              pj->wall_texture[2],
               pj->floor_texture,
               pj->ceiling_texture,
               result.contour[ci].num_vertices,
@@ -288,7 +290,9 @@ map_builder_insert_polygon(
   int32_t     floor_height,
   int32_t     ceiling_height,
   float       brightness,
-  texture_ref wall_texture[],
+  texture_ref wall_texture_top,
+  texture_ref wall_texture_middle,
+  texture_ref wall_texture_bottom,
   texture_ref floor_texture,
   texture_ref ceiling_texture,
   size_t      vertices_count,
@@ -316,9 +320,9 @@ map_builder_insert_polygon(
     .floor_height = floor_height,
     .ceiling_height = ceiling_height,
     .brightness = brightness,
-    .wall_texture[0] = wall_texture[0],
-    .wall_texture[1] = wall_texture[1],
-    .wall_texture[2] = wall_texture[2],
+    .wall_texture[LINE_TEXTURE_TOP] = wall_texture_top,
+    .wall_texture[LINE_TEXTURE_MIDDLE] = wall_texture_middle,
+    .wall_texture[LINE_TEXTURE_BOTTOM] = wall_texture_bottom,
     .floor_texture = floor_texture,
     .ceiling_texture = ceiling_texture
   };

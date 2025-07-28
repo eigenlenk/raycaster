@@ -291,6 +291,7 @@ TEST(map_builder, intersecting_sectors)
 TEST(map_builder, polygon_splitting)
 {
   map_builder builder = { 0 };
+  int wall_tex_ref = 255;
 
   map_builder_add_polygon(&builder, 0, 128, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(0, 0),
@@ -300,7 +301,7 @@ TEST(map_builder, polygon_splitting)
   ));
 
   /* This sector will split the first one so you end up with 3 sectors */
-  map_builder_add_polygon(&builder, 16, 112, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 16, 112, 1, WALLTEX(wall_tex_ref), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(225, -250),
     VEC2F(325, -250),
     VEC2F(325, 250),
@@ -310,6 +311,7 @@ TEST(map_builder, polygon_splitting)
   level_data *level = map_builder_build(&builder);
 
   TEST_ASSERT_EQUAL_INT(3, level->sectors_count);
+  TEST_ASSERT_EQUAL_INT(wall_tex_ref, level->sectors[2].linedefs[0]->side[0].texture[LINE_TEXTURE_MIDDLE]);
 
   free(level);
   map_builder_free(&builder);
