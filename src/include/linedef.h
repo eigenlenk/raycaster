@@ -7,6 +7,7 @@
 
 static const float LINEDEF_SEGMENT_LENGTH_INV = 1.f / 128;
 
+struct polygon;
 struct sector;
 
 typedef enum {
@@ -16,12 +17,16 @@ typedef enum {
 } linedef_side_texture;
 
 typedef enum {
+  /*  */
+  LINEDEF_TRANSPARENT_MIDDLE_TEXTURE = M_BIT(0),
+  /*  */
+  LINEDEF_DOUBLE_SIDED = M_BIT(1),
   /* Keeps top texture in place when changing ceiling height */
-  LINEDEF_PIN_TOP_TEXTURE = M_BIT(0),
+  LINEDEF_PIN_TOP_TEXTURE = M_BIT(2),
   /* Keeps bottom texture in place when changing floor height */
-  LINEDEF_PIN_BOTTOM_TEXTURE = M_BIT(1),
-  /* */
-  LINEDEF_MIRROR = M_BIT(2)
+  LINEDEF_PIN_BOTTOM_TEXTURE = M_BIT(3),
+  /*  */
+  LINEDEF_MIRROR = M_BIT(4)
 } linedef_flags;
 
 typedef struct linedef_segment {
@@ -31,7 +36,7 @@ typedef struct linedef_segment {
 } linedef_segment;
 
 typedef struct linedef {
-  vertex *v0, *v1;
+  const vertex *v0, *v1;
   struct linedef_side {
     struct sector *sector;
     texture_ref texture[3];
@@ -55,14 +60,7 @@ linedef_update_floor_ceiling_limits(linedef*);
 void
 linedef_create_segments_for_side(linedef*, int side);
 
-M_INLINED void
-linedef_set_middle_texture(linedef *this, texture_ref texture)
-{
-  if (!this) { return; }
-  this->side[0].texture[LINE_TEXTURE_MIDDLE] = texture;
-  if (this->side[1].sector) {
-    this->side[1].texture[LINE_TEXTURE_MIDDLE] = texture;
-  }
-}
+void
+linedef_configure_side(linedef*, const struct sector*, const struct polygon*, int);
 
 #endif

@@ -58,12 +58,12 @@ create_level()
         c = 1024 - 32 * (rand() % 24);
       }
 
-      map_builder_add_polygon(&builder, f, c, 1.f, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+      map_builder_add_polygon(&builder, f, c, 1.f, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
         VEC2F(-100+x*size, -100+y*size),
         VEC2F(-100+x*size + size, -100+y*size),
         VEC2F(-100+x*size + size, -100+y*size + size),
         VEC2F(-100+x*size, -100+y*size + size)
-      ));
+      ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
     }
   }
 

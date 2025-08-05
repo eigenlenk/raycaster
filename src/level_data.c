@@ -4,6 +4,9 @@
 
 #define XY(V) (int)V.x, (int)V.y
 
+static linedef*
+level_data_get_linedef(level_data*, vertex*, vertex*, int*);
+
 static bool
 linedef_segment_contains_light(const linedef_segment*, const light*);
 
@@ -36,84 +39,13 @@ level_data_get_vertex(level_data *this, vec2f point)
   return &this->vertices[this->vertices_count++];
 }
 
-/* FIND a linedef with given vertices OR CREATE a new one */
-linedef*
-level_data_get_linedef(level_data *this, sector *sect, vertex *v0, vertex *v1, texture_ref texture[])
-{
-  register size_t i;
-  linedef *line;
-
-  /* Check for existing linedef with these vertices */
-  for (i = 0; i < this->linedefs_count; ++i) {
-    line = &this->linedefs[i];
-
-    if ((line->v0 == v0 && line->v1 == v1) || (line->v0 == v1 && line->v1 == v0)) {
-      line->side[1].sector = sect;
-      
-      line->side[1].texture[0] = line->side[0].texture[0];
-      line->side[1].texture[1] = line->side[0].texture[1];
-      line->side[1].texture[2] = line->side[0].texture[2];
-
-      line->side[0].texture[0] = texture[0];
-      line->side[0].texture[1] = texture[1];
-      line->side[0].texture[2] = texture[2];
-
-      /* Clear middle texture by default for two-sided lines */
-      line->side[0].texture[1] = TEXTURE_NONE;
-      line->side[1].texture[1] = TEXTURE_NONE;
-          
-      linedef_create_segments_for_side(line, 1);
-
-      IF_DEBUG(printf("\t\tRe-use linedef (0x%p): (%d,%d) <-> (%d,%d) (Front: 0x%p, Back: 0x%p)\n",
-        (void*)line, XY(v0->point), XY(v1->point), (void*)line->side[0].sector, (void*)line->side[1].sector
-      ))
-      return line;
-    }
-  }
-
-  const float line_length = math_vec2f_distance(v0->point, v1->point);
-
-  this->linedefs[this->linedefs_count] = (linedef) {
-    .v0 = v0,
-    .v1 = v1,
-    .side[0] = {
-      .sector = sect,
-      .texture[0] = texture[0],
-      .texture[1] = texture[1],
-      .texture[2] = texture[2],
-      .flags = 0,
-      .normal = math_normalize(math_vec2f_perpendicular(vec2f_sub(v1->point, v0->point)))
-    },
-    .side[1] = {
-      .sector = NULL,
-      .texture[0] = TEXTURE_NONE,
-      .texture[1] = TEXTURE_NONE,
-      .texture[2] = TEXTURE_NONE,
-      .flags = 0,
-      .normal = math_normalize(math_vec2f_perpendicular(vec2f_sub(v0->point, v1->point)))
-    },
-    .direction = vec2f_sub(v1->point, v0->point),
-    .length = line_length,
-    .segments = (uint16_t)ceilf(line_length * LINEDEF_SEGMENT_LENGTH_INV),
-    .xmin = fminf(v0->point.x, v1->point.x),
-    .xmax = fmaxf(v0->point.x, v1->point.x),
-    .ymin = fminf(v0->point.y, v1->point.y),
-    .ymax = fmaxf(v0->point.y, v1->point.y)
-  };
-
-  linedef_create_segments_for_side(&this->linedefs[this->linedefs_count], 0);
-
-  IF_DEBUG(printf("\t\tNew linedef (0x%p): (%d,%d) <-> (%d,%d) (Front: 0x%p, Back: 0x%p)\n",
-    (void*)&this->linedefs[this->linedefs_count], XY(v0->point), XY(v1->point), (void*)sect, NULL
-  ))
-
-  return &this->linedefs[this->linedefs_count++];
-}
-
 sector*
 level_data_create_sector_from_polygon(level_data *this, polygon *poly)
 {
   register size_t i;
+  linedef *line;
+  polygon_line *config;
+  int side;
 
   sector *sect = &this->sectors[this->sectors_count++];
 
@@ -133,18 +65,19 @@ level_data_create_sector_from_polygon(level_data *this, polygon *poly)
 #endif
 
   for (i = 0; i < poly->vertices_count; ++i) {
-    linedef_update_floor_ceiling_limits(
-      sector_add_linedef(
-        sect,
-        level_data_get_linedef(
-          this,
-          sect,
-          level_data_get_vertex(this, poly->vertices[i]),
-          level_data_get_vertex(this, poly->vertices[(i+1)%poly->vertices_count]),
-          poly->wall_texture
-        )
-      )
+    vec2f v0 = poly->vertices[i];
+    vec2f v1 = poly->vertices[(i+1)%poly->vertices_count];
+
+    line = level_data_get_linedef(
+      this,
+      level_data_get_vertex(this, v0),
+      level_data_get_vertex(this, v1),
+      &side
     );
+
+    linedef_configure_side(line, sect, poly, side);
+    sector_add_linedef(sect, line);
+    linedef_update_floor_ceiling_limits(line);
   }
 
   return sect;
@@ -258,6 +191,59 @@ level_data_update_lights(level_data *this)
       }
     }
   }
+}
+
+/* FIND a linedef with given vertices OR CREATE a new one */
+static linedef*
+level_data_get_linedef(level_data *this, vertex *v0, vertex *v1, int *side)
+{
+  register size_t i;
+  linedef *line;
+
+  /* Check for existing linedef with these vertices */
+  for (i = 0; i < this->linedefs_count; ++i) {
+    line = &this->linedefs[i];
+
+    if ((line->v0 == v0 && line->v1 == v1) || (line->v0 == v1 && line->v1 == v0)) {
+      IF_DEBUG(printf("\t\tRe-use linedef (0x%p): (%d,%d) <-> (%d,%d) (Front: 0x%p)\n",
+        (void*)line, XY(v0->point), XY(v1->point), (void*)line->side[0].sector
+      ))
+      *side = 1;
+      return line;
+    }
+  }
+
+  const float line_length = math_vec2f_distance(v0->point, v1->point);
+
+  this->linedefs[this->linedefs_count] = (linedef) {
+    .v0 = v0,
+    .v1 = v1,
+    .side[0] = {
+      .sector = NULL,
+      .flags = 0,
+      .normal = math_normalize(math_vec2f_perpendicular(vec2f_sub(v1->point, v0->point)))
+    },
+    .side[1] = {
+      .sector = NULL,
+      .flags = 0,
+      .normal = math_normalize(math_vec2f_perpendicular(vec2f_sub(v0->point, v1->point)))
+    },
+    .direction = vec2f_sub(v1->point, v0->point),
+    .length = line_length,
+    .segments = (uint16_t)ceilf(line_length * LINEDEF_SEGMENT_LENGTH_INV),
+    .xmin = fminf(v0->point.x, v1->point.x),
+    .xmax = fmaxf(v0->point.x, v1->point.x),
+    .ymin = fminf(v0->point.y, v1->point.y),
+    .ymax = fmaxf(v0->point.y, v1->point.y)
+  };
+
+  IF_DEBUG(printf("\t\tNew linedef (0x%p): (%d,%d) <-> (%d,%d)\n",
+    (void*)&this->linedefs[this->linedefs_count], XY(v0->point), XY(v1->point)
+  ))
+
+  *side = 0;
+
+  return &this->linedefs[this->linedefs_count++];
 }
 
 static bool

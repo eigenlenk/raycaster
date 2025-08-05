@@ -14,29 +14,34 @@ map_builder_step_find_polygon_intersections(map_builder*);
 static void
 map_builder_step_configure_back_sectors(map_builder*, level_data*);
 
-static void
-map_builder_insert_polygon(map_builder*, size_t, int32_t, int32_t, float, texture_ref, texture_ref, texture_ref, texture_ref, texture_ref, size_t, void*, int);
+static polygon*
+map_builder_insert_polygon(map_builder*, size_t, int32_t, int32_t, float, struct side_config, texture_ref, texture_ref, size_t, void*, int, size_t, polygon_line[]);
+
+static bool
+vertices_connected(vec2f*, size_t, vec2f, vec2f);
 
 /*
  * Map data public API
  */
 
-void
+polygon*
 map_builder_add_polygon(
-  map_builder *this,
-  int32_t     floor_height,
-  int32_t     ceiling_height,
-  float       brightness,
-  texture_ref wall_texture[],
-  texture_ref floor_texture,
-  texture_ref ceiling_texture,
-  size_t      vertices_count,
-  vec2f       vertices[]
+  map_builder   *this,
+  int32_t       floor_height,
+  int32_t       ceiling_height,
+  float         brightness,
+  texture_ref   floor_texture,
+  texture_ref   ceiling_texture,
+  size_t        vertices_count,
+  vec2f         vertices[],
+  struct side_config default_side_config,
+  size_t        lines_count,
+  polygon_line  lines[]
 ) {
-  map_builder_insert_polygon(
+  return map_builder_insert_polygon(
     this, this->polygons_count, floor_height, ceiling_height, brightness,
-    wall_texture[0], wall_texture[1], wall_texture[2], floor_texture, ceiling_texture,
-    vertices_count, vertices, VEC2F_LIST
+    default_side_config, floor_texture, ceiling_texture,
+    vertices_count, vertices, VEC2F_LIST, lines_count, lines
   );
 }
 
@@ -93,6 +98,15 @@ map_builder_free(map_builder *this)
   size_t i;
   for (i = 0; i < this->polygons_count; ++i) {
     free(this->polygons[i].vertices);
+    
+    if (this->polygons[i].lines) {
+      free(this->polygons[i].lines);
+    }
+
+    this->polygons[i].vertices_count = 0;
+    this->polygons[i].vertices = NULL;
+    this->polygons[i].lines_count = 0;
+    this->polygons[i].lines = NULL;
   }
 }
 
@@ -132,7 +146,17 @@ polygon_add_new_vertices_from(
           polygon_vertices_contains_point(this, other->vertices[j]) == false) {
         IF_DEBUG(printf("\tInserting (%d,%d) of 0x%p between (%d,%d) and (%d,%d) in 0x%p\n",
           XY(other->vertices[j]), (void*)other, XY(this->vertices[i]), XY(this->vertices[i2]), (void*)this))
+        
         polygon_insert_point(this, other->vertices[j], this->vertices[i], this->vertices[i2]);
+        
+        if (!polygon_vertices_contains_point(other, this->vertices[i])) {
+          polygon_add_line(this, other->vertices[j], this->vertices[i], other->default_side_config);
+        }
+
+        if (!polygon_vertices_contains_point(other, this->vertices[i2])) {
+          polygon_add_line(this, other->vertices[j], this->vertices[i2], other->default_side_config);
+        }
+
         break;
       }
     }
@@ -200,14 +224,14 @@ map_builder_step_find_polygon_intersections(map_builder *this)
               pj->floor_height,
               pj->ceiling_height,
               pj->brightness,
-              pj->wall_texture[0],
-              pj->wall_texture[1],
-              pj->wall_texture[2],
+              pj->default_side_config,
               pj->floor_texture,
               pj->ceiling_texture,
               result.contour[ci].num_vertices,
               result.contour[ci].vertex,
-              GPC_VERTEX_LIST
+              GPC_VERTEX_LIST,
+              0,
+              NULL
             );
           }
         }
@@ -259,22 +283,43 @@ map_builder_step_configure_back_sectors(map_builder *this, level_data *level)
       for (k = 0; k < front->linedefs_count; ++k) {
         line = front->linedefs[k];
 
-        if (line->side[0].sector && line->side[1].sector) { continue; }
-        if (sector_connects_vertices(back, line->v0, line->v1)) { continue; }
+        // if (line->side[0].sector && line->side[1].sector) { continue; }
+        // if (sector_connects_vertices(back, line->v0, line->v1)) { continue; }
        
-        if (polygon_is_point_inside(&this->polygons[i], line->v0->point, false) && polygon_is_point_inside(&this->polygons[i], line->v1->point, false)) {
+        if (!(line->side[0].sector && line->side[1].sector) &&
+            !sector_connects_vertices(back, line->v0, line->v1) && 
+            polygon_is_point_inside(&this->polygons[i], line->v0->point, false) &&
+            polygon_is_point_inside(&this->polygons[i], line->v1->point, false)) {
           IF_DEBUG(printf("\t\tAdd contained line %lu (%d,%d) <-> (%d,%d) of sector %d INTO sector %d\n", k, XY(line->v0->point), XY(line->v1->point), j, i))
-          line->side[1].sector = back;
-          line->side[1].texture[0] = line->side[0].texture[0];
-          line->side[1].texture[1] = line->side[0].texture[1];
-          line->side[1].texture[2] = line->side[0].texture[2];
-          /* Clear middle texture by default for two-sided lines */
-          line->side[0].texture[1] = TEXTURE_NONE;
-          line->side[1].texture[1] = TEXTURE_NONE;
+          
+          linedef_configure_side(line, front, &this->polygons[i], 0);
+          linedef_configure_side(line, back, &this->polygons[j], 1);
+
+          linedef_update_floor_ceiling_limits(line);
+
           back->linedefs = realloc(back->linedefs, sizeof(linedef*) * (new_count+1));
           back->linedefs[new_count++] = line;
-          linedef_update_floor_ceiling_limits(line);
-          linedef_create_segments_for_side(line, 1);
+        } else if (!vertices_connected(this->polygons[i].original_vertices, this->polygons[i].original_vertices_count, line->v0->point, line->v1->point) &&
+                   polygon_vertices_contains_point(&this->polygons[i], line->v0->point) &&
+                   polygon_vertices_contains_point(&this->polygons[i], line->v1->point)) {
+          IF_DEBUG(printf("\t\tSwitch shared line %lu (%d,%d) <-> (%d,%d)\n", k, XY(line->v0->point), XY(line->v1->point)))
+          
+          struct linedef_side front = line->side[0];
+
+          line->side[0].flags = line->side[1].flags;
+          line->side[0].texture[0] = line->side[1].texture[0];
+          line->side[0].texture[1] = line->side[1].texture[1];
+          line->side[0].texture[2] = line->side[1].texture[2];
+
+          line->side[1].flags = front.flags;
+          line->side[1].texture[0] = front.texture[0];
+          line->side[1].texture[1] = front.texture[1];
+          line->side[1].texture[2] = front.texture[2];
+
+          /*linedef_configure_side(line, front, &this->polygons[i], 1);
+          linedef_configure_side(line, back, &this->polygons[j], 0);
+
+          linedef_update_floor_ceiling_limits(line);*/
         }
       }
 
@@ -283,25 +328,25 @@ map_builder_step_configure_back_sectors(map_builder *this, level_data *level)
   }
 }
 
-static void
+static polygon*
 map_builder_insert_polygon(
-  map_builder *this,
-  size_t      insert_index,
-  int32_t     floor_height,
-  int32_t     ceiling_height,
-  float       brightness,
-  texture_ref wall_texture_top,
-  texture_ref wall_texture_middle,
-  texture_ref wall_texture_bottom,
-  texture_ref floor_texture,
-  texture_ref ceiling_texture,
-  size_t      vertices_count,
-  void        *vertices,
-  int         vertices_list_type
+  map_builder   *this,
+  size_t        insert_index,
+  int32_t       floor_height,
+  int32_t       ceiling_height,
+  float         brightness,
+  struct side_config default_side_config,
+  texture_ref   floor_texture,
+  texture_ref   ceiling_texture,
+  size_t        vertices_count,
+  void          *vertices,
+  int           vertices_list_type,
+  size_t        lines_count,
+  polygon_line  lines[]
 ) {
-  size_t i;
+  size_t i, v0, v1, vert_counter;
 
-  IF_DEBUG(printf("Insert polygon (%lu vertices) [%d, %d] at index %lu:\n", vertices_count, floor_height, ceiling_height, insert_index))
+  IF_DEBUG(printf("Insert polygon (%lu vertices, %lu lines) [%d, %d] at index %lu:\n", vertices_count, lines_count, floor_height, ceiling_height, insert_index))
 
   if (!this->polygons) {
     this->polygons = (polygon*)malloc(sizeof(polygon));
@@ -317,34 +362,66 @@ map_builder_insert_polygon(
 
   this->polygons[insert_index] = (polygon) {
     .vertices_count = vertices_count,
+    .original_vertices_count = vertices_count,
+    .lines_count = lines_count,
     .floor_height = floor_height,
     .ceiling_height = ceiling_height,
     .brightness = brightness,
-    .wall_texture[LINE_TEXTURE_TOP] = wall_texture_top,
-    .wall_texture[LINE_TEXTURE_MIDDLE] = wall_texture_middle,
-    .wall_texture[LINE_TEXTURE_BOTTOM] = wall_texture_bottom,
+    .default_side_config = default_side_config,
     .floor_texture = floor_texture,
     .ceiling_texture = ceiling_texture
   };
 
-  this->polygons[insert_index].vertices = (vec2f*)malloc(vertices_count * sizeof(vec2f));
+  polygon *poly = &this->polygons[insert_index];
+
+  poly->vertices = (vec2f*)malloc(vertices_count * sizeof(vec2f));
+  poly->original_vertices = (vec2f*)malloc(vertices_count * sizeof(vec2f));
+
+  if (lines_count) {
+    poly->lines = (polygon_line*)malloc(lines_count * sizeof(polygon_line));
+    memcpy(poly->lines, (polygon_line*)lines, lines_count * sizeof(polygon_line));
+  } else {
+    poly->lines = NULL;
+  }
 
   if (vertices_list_type == VEC2F_LIST) {
-    memcpy(this->polygons[insert_index].vertices, (vec2f*)vertices, vertices_count * sizeof(vec2f));
+    memcpy(poly->vertices, (vec2f*)vertices, vertices_count * sizeof(vec2f));
+    memcpy(poly->original_vertices, (vec2f*)vertices, vertices_count * sizeof(vec2f));
   } else if (vertices_list_type == GPC_VERTEX_LIST) {
     gpc_vertex *list = (gpc_vertex *)vertices;
     for (i=0; i < vertices_count; ++i) {
-      this->polygons[insert_index].vertices[i] = VEC2F(list[i].x, list[i].y);
+      poly->vertices[i] = VEC2F(list[i].x, list[i].y);
+      poly->original_vertices[i] = VEC2F(list[i].x, list[i].y);
     }
   }
 
-  if (POLYGON_CLOCKWISE_WINDING(&this->polygons[insert_index]) == false) {
-    polygon_reverse_vertices(&this->polygons[insert_index]);
+  bool vertices_reversed;
+  if ((vertices_reversed = !POLYGON_CLOCKWISE_WINDING(poly))) {
+    IF_DEBUG(printf("\tReverse vertices order...\n"))
+    polygon_reverse_vertices(poly);
   }
 
   IF_DEBUG(for (i=0; i < vertices_count; ++i) {
-    printf("\t(%d, %d)\n", XY(this->polygons[insert_index].vertices[i]));
+    printf("\tVERTEX: (%d, %d)\n", XY(poly->vertices[i]));
   })
 
   this->polygons_count++;
+
+  return poly;
+}
+
+static bool
+vertices_connected(vec2f *vertices, size_t vertices_count, vec2f v0, vec2f v1)
+{
+  size_t i, j;
+
+  for (i = 0; i < vertices_count; ++i) {
+    j = (i+1) % vertices_count;
+    if ((VEC2F_EQUAL(vertices[i], v0) && VEC2F_EQUAL(vertices[j], v1)) ||
+        (VEC2F_EQUAL(vertices[i], v1) && VEC2F_EQUAL(vertices[j], v0))) {
+      return true;
+    }
+  }
+
+  return false;
 }

@@ -17,12 +17,12 @@ TEST(map_builder, convex_polygon)
   int i;
   map_builder builder = { 0 };
 
-  map_builder_add_polygon(&builder, 0, 128, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 0, 128, 1, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(0, 0),
     VEC2F(0, 100),
     VEC2F(100, 100),
     VEC2F(100, 0)
-  ));
+  ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
 
   TEST_ASSERT_EQUAL_INT(0, builder.polygons[0].floor_height);
   TEST_ASSERT_EQUAL_INT(128, builder.polygons[0].ceiling_height);
@@ -54,13 +54,13 @@ TEST(map_builder, concave_polygon)
   int i;
   map_builder builder = { 0 };
 
-  map_builder_add_polygon(&builder, 0, 128, 0.5, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 0, 128, 0.5, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(0, 0),
     VEC2F(0, 100),
     VEC2F(50, 50),
     VEC2F(100, 100),
     VEC2F(100, 0)
-  ));
+  ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
 
   TEST_ASSERT_NULL(map_builder_polygon_at_point(&builder, VEC2F(50, 75)));
   TEST_ASSERT_EQUAL_PTR(&builder.polygons[0], map_builder_polygon_at_point(&builder, VEC2F(10, 10)));
@@ -97,19 +97,19 @@ TEST(map_builder, neighbouring_sectors)
 {
   map_builder builder = { 0 };
 
-  map_builder_add_polygon(&builder, 0, 100, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 0, 100, 1, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(0, 0),
     VEC2F(0, 100),
     VEC2F(100, 100),
     VEC2F(100, 0)
-  ));
+  ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
 
-  map_builder_add_polygon(&builder, 10, 90, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 10, 90, 1, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(100, 0),
     VEC2F(100, 100),
     VEC2F(200, 100),
     VEC2F(200, 0)
-  ));
+  ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
 
   level_data *level = map_builder_build(&builder);
 
@@ -134,19 +134,19 @@ TEST(map_builder, fully_contained_sector)
   int i;
   map_builder builder = { 0 };
 
-  map_builder_add_polygon(&builder, 0, 100, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 0, 100, 1, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(0, 0),
     VEC2F(0, 100),
     VEC2F(100, 100),
     VEC2F(100, 0)
-  ));
+  ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
 
-  map_builder_add_polygon(&builder, 10, 90, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 10, 90, 1, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(25, 25),
     VEC2F(75, 25),
     VEC2F(75, 75),
     VEC2F(25, 75)
-  ));
+  ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
 
   level_data *level = map_builder_build(&builder);
 
@@ -176,19 +176,19 @@ TEST(map_builder, fully_contained_sector_sharing_linedef)
 {
   map_builder builder = { 0 };
 
-  map_builder_add_polygon(&builder, 0, 100, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 0, 100, 1, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(0, 0),
     VEC2F(0, 100),
     VEC2F(100, 100),
     VEC2F(100, 0)
-  ));
+  ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
 
-  map_builder_add_polygon(&builder, 10, 90, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 10, 90, 1, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(50, 25),
     VEC2F(100, 25),
     VEC2F(100, 75),
     VEC2F(50, 75)
-  ));
+  ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
 
   level_data *level = map_builder_build(&builder);
 
@@ -203,8 +203,8 @@ TEST(map_builder, fully_contained_sector_sharing_linedef)
    * │            │
    * │            │
    * │      ┌─────┘
-   * │      │
-   * │      │
+   * │      │ This part has
+   * │      │ been cut out
    * │      └─────┐
    * │            │
    * │            │
@@ -246,19 +246,19 @@ TEST(map_builder, intersecting_sectors)
 {
   map_builder builder = { 0 };
 
-  map_builder_add_polygon(&builder, 0, 100, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 0, 100, 1, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(0, 0),
     VEC2F(0, 100),
     VEC2F(100, 100),
     VEC2F(100, 0)
-  ));
+  ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
 
-  map_builder_add_polygon(&builder, 10, 90, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 10, 90, 1, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(50, 25),
     VEC2F(150, 25),
     VEC2F(150, 75),
     VEC2F(50, 75)
-  ));
+  ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
 
   level_data *level = map_builder_build(&builder);
 
@@ -293,20 +293,20 @@ TEST(map_builder, polygon_splitting)
   map_builder builder = { 0 };
   int wall_tex_ref = 255;
 
-  map_builder_add_polygon(&builder, 0, 128, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 0, 128, 1, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(0, 0),
     VEC2F(500, 0),
     VEC2F(500, 100),
     VEC2F(0, 100)
-  ));
+  ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
 
   /* This sector will split the first one so you end up with 3 sectors */
-  map_builder_add_polygon(&builder, 16, 112, 1, WALLTEX(wall_tex_ref), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 16, 112, 1, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(225, -250),
     VEC2F(325, -250),
     VEC2F(325, 250),
     VEC2F(225, 250)
-  ));
+  ), SIDE_CONFIG(TEXLIST(wall_tex_ref)), UNIFORM_LINES());
 
   level_data *level = map_builder_build(&builder);
 
@@ -321,13 +321,13 @@ TEST(map_builder, optimize_polygon)
 {
   map_builder builder = { 0 };
 
-  map_builder_add_polygon(&builder, 0, 128, 1, WALLTEX(TEXTURE_NONE), TEXTURE_NONE, TEXTURE_NONE, VERTICES(
+  map_builder_add_polygon(&builder, 0, 128, 1, TEXTURE_NONE, TEXTURE_NONE, VERTICES(
     VEC2F(0, 0),
     VEC2F(250, 0), /* Unless any other polygon uses that point as well, it's unnecessary */
     VEC2F(500, 0),
     VEC2F(500, 100),
     VEC2F(0, 100)
-  ));
+  ), SIDE_CONFIG(TEXLIST(TEXTURE_NONE)), UNIFORM_LINES());
 
   level_data *level = map_builder_build(&builder);
 

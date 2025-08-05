@@ -72,11 +72,11 @@ debug_texture_sampler_normalized(
 }
 
 /* For passing wall texture list to map builder as part of a polygon */
-#define WALLTEX(...) __WALLTEX_N(__VA_ARGS__, __WALLTEX_3, __WALLTEX_2, __WALLTEX_1, __WALLTEX_0)(__VA_ARGS__)
+#define TEXLIST(...) __UNPACK_N(__VA_ARGS__, __UNPACK_3, __UNPACK_2, __UNPACK_1, _0)(__VA_ARGS__)
 
-#define __WALLTEX_N(_1, _2, _3, NAME, ...) NAME
-#define __WALLTEX_3(UPPER, MIDDLE, LOWER) ((texture_ref[]) { UPPER, MIDDLE, LOWER })
-#define __WALLTEX_2(UPPER_LOWER, MIDDLE)  ((texture_ref[]) { UPPER_LOWER, MIDDLE, UPPER_LOWER })
-#define __WALLTEX_1(MIDDLE)               ((texture_ref[]) { MIDDLE, MIDDLE, MIDDLE })
+#define __UNPACK_N(_1, _2, _3, NAME, ...) NAME
+#define __UNPACK_3(UPPER, MIDDLE, LOWER) UPPER, MIDDLE, LOWER
+#define __UNPACK_2(UPPER_LOWER, MIDDLE) UPPER_LOWER, MIDDLE, UPPER_LOWER
+#define __UNPACK_1(MIDDLE) MIDDLE, MIDDLE, MIDDLE
 
 #endif

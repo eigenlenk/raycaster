@@ -10,17 +10,19 @@ typedef struct {
   polygon *polygons;
 } map_builder;
 
-void
+polygon*
 map_builder_add_polygon(
   map_builder*,
   int32_t floor_height,
   int32_t ceiling_height,
   float brightness,
-  texture_ref wall_texture[],
   texture_ref floor_texture,
   texture_ref ceiling_texture,
   size_t vertices_count,
-  vec2f vertices[]
+  vec2f vertices[],
+  struct side_config default_side_config,
+  size_t lines_count,
+  polygon_line lines[]
 );
 
 struct level_data*

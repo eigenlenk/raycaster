@@ -428,6 +428,7 @@ process_camera_movement(const float delta_time)
   }
 }
 
+#ifdef OTHER_LEVELS
 static void
 create_grid_level(void)
 {
@@ -469,91 +470,117 @@ create_grid_level(void)
   
   map_builder_free(&builder);
 }
+#endif
 
 static void
 create_demo_level(void)
 {
   map_builder builder = { 0 };
 
-  map_builder_add_polygon(&builder, 0, 144, 0.8f, WALLTEX(STONEWALL_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
-    VEC2F(0, 0),
-    VEC2F(400, 0),
-    VEC2F(400, 400),
-    VEC2F(200, 300),
-    VEC2F(0, 400)
-  ));
+  map_builder_add_polygon(&builder, 0, 144, 0.8f, FLOOR_TEXTURE, CEILING_TEXTURE,
+    VERTICES(
+      VEC2F(0, 0),
+      VEC2F(400, 0),
+      VEC2F(400, 400),
+      VEC2F(200, 300),
+      VEC2F(0, 400)
+    ),
+    SIDE_CONFIG(TEXLIST(STONEWALL_TEXTURE)),
+    M_ARRAY(
+      polygon_line,
+      LINE_CONFIG(VEC2F(0, 0), VEC2F(400, 0), SIDE_CONFIG(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), LINEDEF_TRANSPARENT_MIDDLE_TEXTURE | LINEDEF_DOUBLE_SIDED))
+    )
+  );
 
-  map_builder_add_polygon(&builder, -32, 176, 1.1f, WALLTEX(STONEWALL_TEXTURE), FLOOR_TEXTURE, TEXTURE_NONE, VERTICES(
-    VEC2F(50, 50),
-    VEC2F(50, 200),
-    VEC2F(200, 200),
-    VEC2F(200, 50)
-  ));
+  map_builder_add_polygon(&builder, -32, 176, 1.1f, FLOOR_TEXTURE, TEXTURE_NONE,
+    VERTICES(
+      VEC2F(50, 50),
+      VEC2F(50, 200),
+      VEC2F(200, 200),
+      VEC2F(200, 50)
+    ),
+    SIDE_CONFIG(TEXLIST(GRASS_TEXTURE)),
+    UNIFORM_LINES()
+  );
 
-  map_builder_add_polygon(&builder, 128, 128, 1.f, WALLTEX(WOOD_TEXTURE), WOOD_TEXTURE, WOOD_TEXTURE, VERTICES(
-    VEC2F(100, 100),
-    VEC2F(125, 100),
-    VEC2F(125, 125),
-    VEC2F(100, 125)
-  ));
+  map_builder_add_polygon(&builder, 128, 128, 1.f, WOOD_TEXTURE, WOOD_TEXTURE,
+    VERTICES(
+      VEC2F(112, 112),
+      VEC2F(137, 112),
+      VEC2F(137, 137),
+      VEC2F(112, 137)
+    ),
+    SIDE_CONFIG(TEXLIST(WOOD_TEXTURE)),
+    UNIFORM_LINES()
+  );
 
-  map_builder_add_polygon(&builder, 32, 128, 0.5f, WALLTEX(STONEWALL_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
-    VEC2F(0, 0),
-    VEC2F(400, 0),
-    VEC2F(300, -256),
-    VEC2F(0, -128)
-  ));
+  map_builder_add_polygon(&builder, 32, 128, 0.5f, GRASS_TEXTURE, CEILING_TEXTURE,
+    VERTICES(
+      VEC2F(0, 0),
+      VEC2F(400, 0),
+      VEC2F(300, -256),
+      VEC2F(0, -128)
+    ),
+    SIDE_CONFIG(TEXLIST(SMALL_BRICKS_TEXTURE)),
+    M_ARRAY(
+      polygon_line,
+      LINE_CONFIG(VEC2F(300, -256), VEC2F(0, -128), SIDE_CONFIG(TEXLIST(SMALL_BRICKS_TEXTURE, MIRROR_TEXTURE), LINEDEF_MIRROR))
+    )
+  );
 
-  map_builder_add_polygon(&builder, -128, 256, 0.15f, WALLTEX(LARGE_BRICKS_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
-    VEC2F(400, 400),
-    VEC2F(200, 300),
-    VEC2F(100, 1000),
-    VEC2F(500, 1000)
-  ));
+  map_builder_add_polygon(&builder, -128, 256, 0.15f, FLOOR_TEXTURE, CEILING_TEXTURE,
+    VERTICES(
+      VEC2F(400, 400),
+      VEC2F(200, 300),
+      VEC2F(100, 1000),
+      VEC2F(500, 1000)
+    ),
+    SIDE_CONFIG(TEXLIST(LARGE_BRICKS_TEXTURE)),
+    M_ARRAY(
+      polygon_line,
+      LINE_CONFIG(VEC2F(200, 300), VEC2F(100, 1000), SIDE_CONFIG(TEXLIST(LARGE_BRICKS_TEXTURE, MIRROR_TEXTURE), LINEDEF_MIRROR))
+    )
+  );
 
-  map_builder_add_polygon(&builder, 0, 214, 0.15f, WALLTEX(METAL_STONE_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
-    VEC2F(260, 500),
-    VEC2F(324, 500),
-    VEC2F(324, 700),
-    VEC2F(260, 700)
-  ));
+  map_builder_add_polygon(&builder, 0, 214, 0.15f, FLOOR_TEXTURE, CEILING_TEXTURE,
+    VERTICES(
+      VEC2F(260, 500),
+      VEC2F(324, 500),
+      VEC2F(324, 800),
+      VEC2F(260, 800)
+    ),
+    SIDE_CONFIG(TEXLIST(METAL_STONE_TEXTURE), LINEDEF_PIN_TOP_TEXTURE | LINEDEF_PIN_BOTTOM_TEXTURE),
+    M_ARRAY(
+      polygon_line,
+      LINE_CONFIG(VEC2F(324, 1200), VEC2F(260, 1200), SIDE_CONFIG(TEXLIST(LARGE_BRICKS_TEXTURE)))
+    )
+  );
+
+  map_builder_add_polygon(&builder, 0, 0, 1.f, WOOD_TEXTURE, WOOD_TEXTURE,
+    VERTICES(
+      VEC2F(184, 600),
+      VEC2F(300, 600),
+      VEC2F(300, 616),
+      VEC2F(184, 616)
+    ),
+    SIDE_CONFIG(TEXLIST(WOOD_TEXTURE)),
+    UNIFORM_LINES()
+  );
 
   demo_level = map_builder_build(&builder);
   demo_level->sky_texture = SKY_TEXTURE;
 
   moving_sector.ref = &demo_level->sectors[5];
   moving_sector.direction = rand() % 2 ? 1 : -1;
-  moving_sector.ref->linedefs[0]->side[1].flags |= LINEDEF_PIN_BOTTOM_TEXTURE | LINEDEF_PIN_TOP_TEXTURE;
-  moving_sector.ref->linedefs[1]->side[1].flags |= LINEDEF_PIN_BOTTOM_TEXTURE | LINEDEF_PIN_TOP_TEXTURE;
-  moving_sector.ref->linedefs[2]->side[1].flags |= LINEDEF_PIN_BOTTOM_TEXTURE | LINEDEF_PIN_TOP_TEXTURE;
-  moving_sector.ref->linedefs[3]->side[1].flags |= LINEDEF_PIN_BOTTOM_TEXTURE | LINEDEF_PIN_TOP_TEXTURE;
-
-  level_data_find_linedef(demo_level, VEC2F(200, 300), VEC2F(100, 1000))->side[0].flags |= LINEDEF_MIRROR;
-  level_data_find_linedef(demo_level, VEC2F(0, -128), VEC2F(300, -256))->side[0].flags |= LINEDEF_MIRROR;
 
   dynamic_light = level_data_add_light(demo_level, VEC3F(200, 600, 64), 300, 1.0f);
   light_z = dynamic_light->entity.z;
   light_movement_range = 48;
 
-  /* Configure some transparent textures */
-  linedef_set_middle_texture(
-    level_data_find_linedef(demo_level, VEC2F(0, 0), VEC2F(400, 0)),
-    METAL_BARS
-  );
-
-  linedef_set_middle_texture(
-    level_data_find_linedef(demo_level, VEC2F(200, 300), VEC2F(100, 1000)),
-    MIRROR_TEXTURE
-  );
-
-  linedef_set_middle_texture(
-    level_data_find_linedef(demo_level, VEC2F(0, -128), VEC2F(300, -256)),
-    MIRROR_TEXTURE
-  );
-  
   map_builder_free(&builder);
 }
 
+#ifdef OTHER_LEVELS
 static void
 create_big_one(void)
 {
@@ -799,6 +826,7 @@ create_mirrors_and_large_sky(void)
 
   map_builder_free(&builder);
 }
+#endif
 
 static void
 load_level(int n)
@@ -812,14 +840,16 @@ load_level(int n)
   moving_sector.timer = 0.f;
   moving_sector.distance = 0;
 
-  switch (n) {
+  /*switch (n) {
   case 1: create_demo_level(); break;
   case 2: create_big_one(); break;
   case 3: create_semi_intersecting_sectors(); break;
   case 4: create_crossing_and_splitting_sectors(); break;
   case 5: create_mirrors_and_large_sky(); break;
   default: create_grid_level(); break;
-  }
+  }*/
+
+  create_demo_level();
   
   camera_init(&cam, demo_level);
 }
