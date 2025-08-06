@@ -475,6 +475,94 @@ create_grid_level(void)
 static void
 create_demo_level(void)
 {
+  demo_level = level_data_allocate();
+  demo_level->sky_texture = SKY_TEXTURE;
+
+  level_data_begin_sector(demo_level, 0, 144, 0.8, FLOOR_TEXTURE, CEILING_TEXTURE);
+  /* Shape of the sector */
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), LINEDEF_TRANSPARENT_MIDDLE_TEXTURE | LINEDEF_DOUBLE_SIDED, VEC2F(0, 0), VEC2F(400, 0)),
+    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(400, 400)),
+    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(200, 300)),
+    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(0,   400)),
+    LINE_FINISH(TEXLIST(STONEWALL_TEXTURE), 0)
+  ));
+  /* Cut a hole for a different sector */
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(50,  50), VEC2F(50, 200)),
+    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(200, 200)),
+    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(200, 50)),
+    LINE_FINISH(TEXLIST(STONEWALL_TEXTURE), 0)
+  ));
+  level_data_end_sector();
+
+  level_data_begin_sector(demo_level, -32, 176, 1.1, FLOOR_TEXTURE, TEXTURE_NONE);
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(50,  50), VEC2F(50, 200)),
+    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(200, 200)),
+    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(200, 50)),
+    LINE_FINISH(TEXLIST(STONEWALL_TEXTURE), 0)
+  ));
+  /* A wooden post */
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(WOOD_TEXTURE), 0, VEC2F(112, 112), VEC2F(137, 112)),
+    LINE_APPEND(TEXLIST(WOOD_TEXTURE), 0, VEC2F(137, 137)),
+    LINE_APPEND(TEXLIST(WOOD_TEXTURE), 0, VEC2F(112, 137)),
+    LINE_FINISH(TEXLIST(WOOD_TEXTURE), 0)
+  ));
+  /*
+   * Additional freestandig lines/objects that are not part of the polygon.
+   * This is mostly for transparent static objects in the game world. Grass on
+   * the ground, cobwebs, a hanging lamp etc.
+   */
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(METAL_BARS), LINEDEF_DETAIL | LINEDEF_TRANSPARENT_MIDDLE_TEXTURE | LINEDEF_DOUBLE_SIDED, VEC2F(60, 60), VEC2F(190, 190))
+  ));
+  level_data_end_sector();
+
+  level_data_begin_sector(demo_level, 32, 128, 0.5, FLOOR_TEXTURE, CEILING_TEXTURE);
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(SMALL_BRICKS_TEXTURE), 0, VEC2F(0,   0), VEC2F(400, 0)),
+    LINE_APPEND(TEXLIST(SMALL_BRICKS_TEXTURE), 0, VEC2F(300, -256)),
+    LINE_APPEND(TEXLIST(SMALL_BRICKS_TEXTURE, MIRROR_TEXTURE), LINEDEF_MIRROR, VEC2F(0, -128)),
+    LINE_FINISH(TEXLIST(SMALL_BRICKS_TEXTURE), 0)
+  ));
+  level_data_end_sector();
+
+  level_data_begin_sector(demo_level, -128, 256, 0.15, FLOOR_TEXTURE, CEILING_TEXTURE);
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(400, 400), VEC2F(200, 300)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE, MIRROR_TEXTURE), LINEDEF_MIRROR, VEC2F(100, 1000)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(500, 1000)),
+    LINE_FINISH(TEXLIST(LARGE_BRICKS_TEXTURE), 0)
+  ));
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(METAL_STONE_TEXTURE), LINEDEF_PIN_TEXTURES, VEC2F(260, 500), VEC2F(324, 500)),
+    LINE_APPEND(TEXLIST(METAL_STONE_TEXTURE), LINEDEF_PIN_TEXTURES, VEC2F(324, 800)),
+    LINE_APPEND(TEXLIST(METAL_STONE_TEXTURE), LINEDEF_PIN_TEXTURES, VEC2F(260, 800)),
+    LINE_FINISH(TEXLIST(METAL_STONE_TEXTURE), LINEDEF_PIN_TEXTURES)
+  ));
+  level_data_end_sector();
+
+  moving_sector.direction = rand() % 2 ? 1 : -1;
+  moving_sector.ref = level_data_begin_sector(demo_level, 32, 128, 0.15, FLOOR_TEXTURE, CEILING_TEXTURE);
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(260, 500), VEC2F(324, 500)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(324, 800)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(260, 800)),
+    LINE_FINISH(TEXLIST(LARGE_BRICKS_TEXTURE), 0)
+  ));
+  level_data_end_sector();
+
+  map_cache_process_level_data(&demo_level->cache, demo_level);
+
+  dynamic_light = level_data_add_light(demo_level, VEC3F(200, 600, 64), 300, 1.0f);
+  light_z = dynamic_light->entity.z;
+  light_movement_range = 48;
+
+
+
+#ifdef OLDDD
   map_builder builder = { 0 };
 
   map_builder_add_polygon(&builder, 0, 144, 0.8f, FLOOR_TEXTURE, CEILING_TEXTURE,
@@ -578,6 +666,7 @@ create_demo_level(void)
   light_movement_range = 48;
 
   map_builder_free(&builder);
+#endif
 }
 
 #ifdef OTHER_LEVELS

@@ -11,7 +11,7 @@ camera_init(camera *this, level_data *level)
   this->entity = (entity) {
     .level = level,
     .sector = NULL,
-    .position = VEC2F(70, 70),
+    .position = VEC2F(30, 30),
     .z = 64,
     .direction = vec2f_make(1, 0),
     .data = (void*)this,

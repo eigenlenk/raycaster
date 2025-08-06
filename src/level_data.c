@@ -83,6 +83,130 @@ level_data_create_sector_from_polygon(level_data *this, polygon *poly)
   return sect;
 }
 
+static sector *open_sector = NULL;
+
+sector*
+level_data_begin_sector(
+  level_data *this,
+  int32_t floor_height,
+  int32_t ceiling_height,
+  float brightness,
+  texture_ref floor_texture,
+  texture_ref ceiling_texture
+) {
+  sector *sect = &this->sectors[this->sectors_count++];
+
+  IF_DEBUG(printf("\tNew sector (0x%p, count: %d):\n", (void*)sect, this->sectors_count))
+
+  sect->floor.height = floor_height;
+  sect->floor.texture = floor_texture;
+  sect->ceiling.height = ceiling_height;
+  sect->ceiling.texture = ceiling_texture;
+  sect->brightness = brightness;
+  sect->linedefs = NULL;
+  sect->linedefs_count = 0;
+
+#ifdef RAYCASTER_PRERENDER_VISCHECK
+  sect->visible_linedefs = NULL;
+  sect->visible_linedefs_count = 0;
+#endif
+
+  open_sector = sect;
+
+  return sect;
+}
+
+void
+level_data_end_sector()
+{
+  open_sector = NULL;
+}
+
+void
+level_data_update_sector_lines(level_data *this, sector *sect, size_t num_lines, line_dto lines[])
+{
+  sect = sect ? sect : open_sector;
+
+  size_t i;
+  linedef *line;
+  line_dto *dto;
+  int side;
+  bool switch_vertices;
+  float signed_area;
+  vec2f v0, v1, _v1;
+  bool first_polygon = sect->linedefs_count == 0;
+
+  for (i = 0, signed_area = 0; i < num_lines; ++i) {
+    v0 = lines[i].v0;
+    v1 = lines[i].v1;
+    if (M_FLAGGED_NAN_CHECK(v0.x, VERT_OPTION_APPEND)) { v0 = _v1; }
+    if (M_FLAGGED_NAN_CHECK(v1.x, VERT_OPTION_FINISH)) { v1 = lines[0].v0; }
+    lines[i].v0 = v0;
+    lines[i].v1 = v1;
+    signed_area += math_cross(v0, v1);
+    _v1 = v1;
+    IF_DEBUG(printf("LINE: (%d,%d) <-> (%d,%d), %d, %d, %d, %d\n", XY(v0), XY(v1), lines[i].texture_top, lines[i].texture_middle, lines[i].texture_bottom, lines[i].flags))
+  }
+  signed_area *= 0.5;
+  switch_vertices = (first_polygon && signed_area > 0) || (!first_polygon && signed_area < 0);
+
+  for (i = 0; i < num_lines; ++i) {
+    dto = &lines[i];
+
+    line = level_data_get_linedef(
+      this,
+      level_data_get_vertex(this, switch_vertices ? dto->v1 : dto->v0),
+      level_data_get_vertex(this, switch_vertices ? dto->v0 : dto->v1),
+      &side
+    );
+
+    line->side[side].sector = sect;
+
+    linedef_create_segments_for_side(line, side);
+
+    line->side[side].flags = dto->flags;
+    line->side[side].texture[LINE_TEXTURE_TOP] = dto->texture_top;
+    line->side[side].texture[LINE_TEXTURE_BOTTOM] = dto->texture_bottom;
+
+    if (side == 0) {
+      line->side[0].texture[LINE_TEXTURE_MIDDLE] = dto->texture_middle;
+
+      if (dto->flags & LINEDEF_DETAIL) {
+        line->side[1].sector = sect;
+
+        if (dto->flags & LINEDEF_DOUBLE_SIDED) {
+          line->side[1].flags = dto->flags;
+          line->side[1].texture[LINE_TEXTURE_MIDDLE] = dto->texture_middle;
+        }
+      }
+    } else {
+      if (dto->flags & LINEDEF_TRANSPARENT_MIDDLE_TEXTURE) {
+        line->side[1].texture[LINE_TEXTURE_MIDDLE] = dto->texture_middle;
+      
+      } else if (line->side[0].flags & LINEDEF_TRANSPARENT_MIDDLE_TEXTURE) {
+        if (line->side[0].flags & LINEDEF_DOUBLE_SIDED) {
+          line->side[1].flags |= LINEDEF_TRANSPARENT_MIDDLE_TEXTURE | LINEDEF_DOUBLE_SIDED;
+          line->side[1].texture[LINE_TEXTURE_MIDDLE] = line->side[0].texture[LINE_TEXTURE_MIDDLE] ;
+        } else {
+          line->side[1].texture[LINE_TEXTURE_MIDDLE] = TEXTURE_NONE;
+        }
+
+      } else {
+        line->side[0].texture[LINE_TEXTURE_MIDDLE] = TEXTURE_NONE;
+        line->side[1].texture[LINE_TEXTURE_MIDDLE] = TEXTURE_NONE;
+
+      }
+
+      /*struct linedef_side front = line->side[0];
+      line->side[0] = line->side[1];
+      line->side[1] = front;*/
+    }
+
+    sector_add_linedef(sect, line);
+    linedef_update_floor_ceiling_limits(line);
+  }
+}
+
 light*
 level_data_add_light(level_data *this, vec3f pos, float r, float s) {
   if (this->lights_count == 64) {

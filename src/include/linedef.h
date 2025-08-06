@@ -26,7 +26,11 @@ typedef enum {
   /* Keeps bottom texture in place when changing floor height */
   LINEDEF_PIN_BOTTOM_TEXTURE = M_BIT(3),
   /*  */
-  LINEDEF_MIRROR = M_BIT(4)
+  LINEDEF_MIRROR = M_BIT(4),
+  /*  */
+  LINEDEF_DETAIL = M_BIT(5),
+
+  LINEDEF_PIN_TEXTURES = LINEDEF_PIN_TOP_TEXTURE | LINEDEF_PIN_BOTTOM_TEXTURE
 } linedef_flags;
 
 typedef struct linedef_segment {
