@@ -131,7 +131,7 @@ level_data_update_sector_lines(level_data *this, sector *sect, size_t num_lines,
   linedef *line;
   line_dto *dto;
   int side;
-  bool switch_vertices;
+  bool switch_vertices = false;
   float signed_area;
   vec2f v0, v1, _v1;
   bool first_polygon = sect->linedefs_count == 0;
@@ -148,7 +148,7 @@ level_data_update_sector_lines(level_data *this, sector *sect, size_t num_lines,
     IF_DEBUG(printf("LINE: (%d,%d) <-> (%d,%d), %d, %d, %d, %d\n", XY(v0), XY(v1), lines[i].texture_top, lines[i].texture_middle, lines[i].texture_bottom, lines[i].flags))
   }
   signed_area *= 0.5;
-  switch_vertices = (first_polygon && signed_area > 0) || (!first_polygon && signed_area < 0);
+  switch_vertices = num_lines > 2 && ((first_polygon && signed_area > 0) || (!first_polygon && signed_area < 0));
 
   for (i = 0; i < num_lines; ++i) {
     dto = &lines[i];

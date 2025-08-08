@@ -568,52 +568,84 @@ create_demo_level(void)
   light_movement_range = 48;
 }
 
-#ifdef OTHER_LEVELS
 static void
 create_big_one(void)
 {
-  map_builder builder = { 0 };
+  demo_level = level_data_allocate();
 
-  map_builder_add_polygon(&builder, 0, 2048, 0.25f, WALLTEX(LARGE_BRICKS_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
-    VEC2F(0, 0),
-    VEC2F(6144, 0),
-    VEC2F(6144, 6144),
-    VEC2F(0, 6144)
+  sector *outer_sector = level_data_begin_sector(demo_level, 0, 2048, 0.25, FLOOR_TEXTURE, CEILING_TEXTURE);
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(0, 0), VEC2F(6144, 0)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(6144, 6144)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(0, 6144)),
+    LINE_FINISH(TEXLIST(LARGE_BRICKS_TEXTURE), 0)
   ));
+  level_data_end_sector();
 
   const int w = 20;
   const int h = 20;
   const int size = 256;
 
-  register int x, y, c, f;
+  int x, y, c, f;
+  vec2f v0, v1, v2, v3;
 
   for (y = 0; y < h; ++y) {
     for (x = 0; x < w; ++x) {
       if (rand() % 20 == 5) {
         c = f = 0;
       } else {
-        f = 256 + 8 * (rand() % 16);
-        c = 1440 - 32 * (rand() % 24);
+        f = 256 + 32 * (rand() % 8);
+        c = 1440 - 64 * (rand() % 12);
       }
 
-      map_builder_add_polygon(&builder, f, c, 0.5f, WALLTEX(LARGE_BRICKS_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
-        VEC2F(512+x*size,        512+y*size),
-        VEC2F(512+x*size + size, 512+y*size),
-        VEC2F(512+x*size + size, 512+y*size + size),
-        VEC2F(512+x*size,        512+y*size + size)
+      v0 = VEC2F(512+x*size, 512+y*size);
+      v1 = VEC2F(512+x*size + size, 512+y*size);
+      v2 = VEC2F(512+x*size + size, 512+y*size + size);
+      v3 = VEC2F(512+x*size, 512+y*size + size);
+
+      if (y == 0) {
+        level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, v1)
+        ));
+      }
+
+      if (x == 0) {
+        level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v3, v0)
+        ));
+      }
+
+      if (y == h-1) {
+        level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v2, v3)
+        ));
+      }
+
+      if (x == w-1) {
+        level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v1, v2)
+        ));
+      }
+
+      level_data_begin_sector(demo_level, f, c, 0.5, FLOOR_TEXTURE, CEILING_TEXTURE);
+      level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+        LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, v1),
+        LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v2),
+        LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v3),
+        LINE_FINISH(TEXLIST(LARGE_BRICKS_TEXTURE), 0)
       ));
+      level_data_end_sector();
     }
   }
 
-  demo_level = map_builder_build(&builder);
+  map_cache_process_level_data(&demo_level->cache, demo_level);
 
   dynamic_light = level_data_add_light(demo_level, VEC3F(460, 460, 512), 1024, 1.0f);
   light_z = dynamic_light->entity.z;
   light_movement_range = 400;
-
-  map_builder_free(&builder);
 }
 
+#ifdef OTHER_LEVELS
 static void
 create_semi_intersecting_sectors(void)
 {
@@ -830,7 +862,7 @@ load_level(int n)
 
   switch (n) {
   case 1: create_demo_level(); break;
-  // case 2: create_big_one(); break;
+  case 2: create_big_one(); break;
   // case 3: create_semi_intersecting_sectors(); break;
   // case 4: create_crossing_and_splitting_sectors(); break;
   // case 5: create_mirrors_and_large_sky(); break;
