@@ -182,7 +182,6 @@ level_data_update_sector_lines(level_data *this, sector *sect, size_t num_lines,
     } else {
       if (dto->flags & LINEDEF_TRANSPARENT_MIDDLE_TEXTURE) {
         line->side[1].texture[LINE_TEXTURE_MIDDLE] = dto->texture_middle;
-      
       } else if (line->side[0].flags & LINEDEF_TRANSPARENT_MIDDLE_TEXTURE) {
         if (line->side[0].flags & LINEDEF_DOUBLE_SIDED) {
           line->side[1].flags |= LINEDEF_TRANSPARENT_MIDDLE_TEXTURE | LINEDEF_DOUBLE_SIDED;
@@ -190,16 +189,10 @@ level_data_update_sector_lines(level_data *this, sector *sect, size_t num_lines,
         } else {
           line->side[1].texture[LINE_TEXTURE_MIDDLE] = TEXTURE_NONE;
         }
-
       } else {
         line->side[0].texture[LINE_TEXTURE_MIDDLE] = TEXTURE_NONE;
         line->side[1].texture[LINE_TEXTURE_MIDDLE] = TEXTURE_NONE;
-
       }
-
-      /*struct linedef_side front = line->side[0];
-      line->side[0] = line->side[1];
-      line->side[1] = front;*/
     }
 
     sector_add_linedef(sect, line);

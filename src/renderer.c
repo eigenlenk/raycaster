@@ -403,7 +403,7 @@ find_sector_intersections(
     side = line->side[0].sector == sect ? 0 : 1;
     sign = math_sign(line->v0->point, line->v1->point, ray->perspective_origin);
 
-    if (!(line->side[side].flags & LINEDEF_DOUBLE_SIDED) && ((side == 0 && sign > 0) || (side == 1 && sign < 0))) {
+    if (!(line->side[side].flags & LINEDEF_DETAIL) && ((side == 0 && sign > 0) || (side == 1 && sign < 0))) {
       continue;
     }
 
@@ -414,7 +414,6 @@ find_sector_intersections(
         break;
       }
 
-      result_count ++;
       point_distance = planar_distance * ray->theta_inverse;
 
       depth_scale_factor = this->frame_info.unit_size / planar_distance;
@@ -424,6 +423,8 @@ find_sector_intersections(
 
       result_count ++;
       insert_index = column->intersections.count++;
+
+      back_sector = line->side[!side].sector;
 
       column->intersections.list[insert_index] = (ray_intersection) {
         .ray = {
@@ -443,7 +444,7 @@ find_sector_intersections(
         .ray_determinant = det_accum + ray_det,
         .line = line,
         .front_sector = (sector*)sect,
-        .back_sector = line->side[!side].sector,
+        .back_sector = back_sector,
         .side = side,
         .distance_steps = (uint8_t)(point_distance * LIGHT_STEP_DISTANCE_INVERSE),
 #if !defined RAYCASTER_LIGHT_STEPS || (RAYCASTER_LIGHT_STEPS == 0)
@@ -455,9 +456,9 @@ find_sector_intersections(
       /*
        * Keep track of the closest full wall that we can find (in case of concave polygons
        * it could be >1). That is the wall beyond nothing will be drawn and even if we find
-       * an intersection beoyond it, we can discard it.
-      */
-      if ((back_sector = line->side[!side].sector)) {
+       * an intersection beyond it, we can discard it.
+       */
+      if (back_sector && (back_sector->floor.height < back_sector->ceiling.height)) {
         if (!context->full_wall || planar_distance < context->full_wall->planar_distance) {
           insert_sorted(&column->intersections.list[insert_index], &context->head);
           result_count += find_sector_intersections(this, back_sector, ray, context, column, det_accum);
@@ -510,8 +511,6 @@ find_mirror_intersections(const renderer *this, const ray_info *ray, ray_interse
     column,
     intersection->ray_determinant
   )) {
-    intersection->next = new_context.head ? new_context.head : new_context.full_wall;
-    
     /* Insert the closest full wall we found */
     if (new_context.full_wall) {
       insert_sorted(new_context.full_wall, &new_context.head);
@@ -524,6 +523,8 @@ find_mirror_intersections(const renderer *this, const ray_info *ray, ray_interse
         new_context.full_wall->next = NULL;
       }
     }
+
+    intersection->next = new_context.head ? new_context.head : new_context.full_wall;
   } else {
     /* No hits in the mirror (out of intersections or draw distance). Terminate the column */
     intersection->next = NULL;
@@ -540,10 +541,12 @@ draw_column_intersection(
     return;
   }
 
+  const struct linedef_side *fside = &intersection->line->side[intersection->side];
+
   /* Decide which kind of wall surface are we dealing with */
-  if (intersection->line->side[intersection->side].flags & LINEDEF_MIRROR) {
+  if (fside->flags & LINEDEF_MIRROR) {
     draw_mirror(this, intersection, column);
-  } else if (intersection->next) {
+  } else if (intersection->next || (!intersection->next && fside->texture[LINE_TEXTURE_MIDDLE] == TEXTURE_NONE)) {
     draw_segmented_wall(this, intersection, column);
   } else {
     draw_full_wall(this, intersection, column);

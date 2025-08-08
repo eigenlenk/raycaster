@@ -478,23 +478,29 @@ create_demo_level(void)
   demo_level = level_data_allocate();
   demo_level->sky_texture = SKY_TEXTURE;
 
+  /* 1: Begin sector*/
   level_data_begin_sector(demo_level, 0, 144, 0.8, FLOOR_TEXTURE, CEILING_TEXTURE);
-  /* Shape of the sector */
+
+  /* 2: Define the outer shape of the sector */
   level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
-    LINE_CREATE(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), LINEDEF_TRANSPARENT_MIDDLE_TEXTURE | LINEDEF_DOUBLE_SIDED, VEC2F(0, 0), VEC2F(400, 0)),
+    LINE_CREATE(TEXLIST(STONEWALL_TEXTURE, METAL_GRATING), LINEDEF_TRANSPARENT_MIDDLE_TEXTURE | LINEDEF_DOUBLE_SIDED, VEC2F(0, 0), VEC2F(400, 0)),
     LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(400, 400)),
     LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(200, 300)),
     LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(0,   400)),
     LINE_FINISH(TEXLIST(STONEWALL_TEXTURE), 0)
   ));
-  /* Cut a hole for a different sector */
+
+  /* 3: Define holes for other sectors or simply regions where full wall is rendered */
   level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
-    LINE_CREATE(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(50,  50), VEC2F(50, 200)),
-    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(200, 200)),
-    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(200, 50)),
-    LINE_FINISH(TEXLIST(STONEWALL_TEXTURE), 0)
+    LINE_CREATE(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), LINEDEF_TRANSPARENT_MIDDLE_TEXTURE, VEC2F(50,  50), VEC2F(50, 200)),
+    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), LINEDEF_TRANSPARENT_MIDDLE_TEXTURE, VEC2F(200, 200)),
+    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), LINEDEF_TRANSPARENT_MIDDLE_TEXTURE, VEC2F(200, 50)),
+    LINE_FINISH(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), LINEDEF_TRANSPARENT_MIDDLE_TEXTURE)
   ));
+
+  /* 4: End sector construction */
   level_data_end_sector();
+
 
   level_data_begin_sector(demo_level, -32, 176, 1.1, FLOOR_TEXTURE, TEXTURE_NONE);
   level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
@@ -516,7 +522,7 @@ create_demo_level(void)
    * the ground, cobwebs, a hanging lamp etc.
    */
   level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
-    LINE_CREATE(TEXLIST(METAL_BARS), LINEDEF_DETAIL | LINEDEF_TRANSPARENT_MIDDLE_TEXTURE | LINEDEF_DOUBLE_SIDED, VEC2F(60, 60), VEC2F(190, 190))
+    // LINE_CREATE(TEXLIST(METAL_BARS), LINEDEF_DETAIL | LINEDEF_TRANSPARENT_MIDDLE_TEXTURE | LINEDEF_DOUBLE_SIDED, VEC2F(60, 60), VEC2F(190, 190))
   ));
   level_data_end_sector();
 
@@ -545,7 +551,7 @@ create_demo_level(void)
   level_data_end_sector();
 
   moving_sector.direction = rand() % 2 ? 1 : -1;
-  moving_sector.ref = level_data_begin_sector(demo_level, 32, 128, 0.15, FLOOR_TEXTURE, CEILING_TEXTURE);
+  moving_sector.ref = level_data_begin_sector(demo_level, 128, 128, 0.15, FLOOR_TEXTURE, CEILING_TEXTURE);
   level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
     LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(260, 500), VEC2F(324, 500)),
     LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(324, 800)),
