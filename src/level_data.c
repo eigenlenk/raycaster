@@ -171,7 +171,7 @@ level_data_update_sector_lines(level_data *this, sector *sect, size_t num_lines,
     if (side == 0) {
       line->side[0].texture[LINE_TEXTURE_MIDDLE] = dto->texture_middle;
 
-      if (dto->flags & LINEDEF_DETAIL) {
+      if (dto->flags & LINEDEF_FREESTANDING) {
         line->side[1].sector = sect;
 
         if (dto->flags & LINEDEF_DOUBLE_SIDED) {

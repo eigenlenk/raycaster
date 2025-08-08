@@ -403,7 +403,7 @@ find_sector_intersections(
     side = line->side[0].sector == sect ? 0 : 1;
     sign = math_sign(line->v0->point, line->v1->point, ray->perspective_origin);
 
-    if (!(line->side[side].flags & LINEDEF_DETAIL) && ((side == 0 && sign > 0) || (side == 1 && sign < 0))) {
+    if ((!(line->side[side].flags & LINEDEF_FREESTANDING) || !(line->side[side].flags & LINEDEF_DOUBLE_SIDED)) && ((side == 0 && sign > 0) || (side == 1 && sign < 0))) {
       continue;
     }
 
