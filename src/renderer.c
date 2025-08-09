@@ -139,6 +139,9 @@ draw_segmented_wall(const renderer*, const ray_intersection*, column_info*);
 static void
 draw_sky_segment(const renderer *this, const ray_intersection*, const column_info*, uint32_t, uint32_t);
 
+static void
+draw_object_segment(const renderer*, const ray_intersection*, column_info*);
+
 M_INLINED void
 init_depth_values(renderer *this)
 {
@@ -546,6 +549,8 @@ draw_column_intersection(
   /* Decide which kind of wall surface are we dealing with */
   if (fside->flags & LINEDEF_MIRROR) {
     draw_mirror(this, intersection, column);
+  } else if (fside->flags & LINEDEF_FREESTANDING) {
+    draw_object_segment(this, intersection, column);
   } else if (intersection->next || (!intersection->next && fside->texture[LINE_TEXTURE_MIDDLE] == TEXTURE_NONE)) {
     draw_segmented_wall(this, intersection, column);
   } else {
@@ -668,6 +673,19 @@ draw_segmented_wall(const renderer *this, const ray_intersection *intersection, 
   if (fside->texture[LINE_TEXTURE_MIDDLE] != TEXTURE_NONE) {
     draw_wall_segment(this, intersection, column, n_top, n_bottom, n_top - this->frame_info.half_h - intersection->vz_scaled, fside->texture[LINE_TEXTURE_MIDDLE]);
   }
+}
+
+static void
+draw_object_segment(const renderer *this, const ray_intersection *intersection, column_info *column)
+{
+  const struct linedef_side *fside = &intersection->line->side[intersection->side];
+  const float sy = ceilf(M_MAX(intersection->cz_local, column->top_limit));
+  const float ey = M_CLAMP(intersection->fz_local, column->top_limit, column->bottom_limit);
+
+  /* Render next ray intersection */
+  draw_column_intersection(this, intersection->next, column);
+
+  draw_wall_segment(this, intersection, column, sy, ey, sy - this->frame_info.half_h - intersection->vz_scaled, fside->texture[LINE_TEXTURE_MIDDLE]);
 }
 
 /*

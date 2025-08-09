@@ -485,10 +485,10 @@ create_demo_level(void)
 
     /* 3: Define holes for other sectors or simply regions where full wall is rendered */
     level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
-      LINE_CREATE(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), LINEDEF_TRANSPARENT_WALL, VEC2F(50,  50), VEC2F(50, 200)),
-      LINE_APPEND(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), LINEDEF_TRANSPARENT_WALL, VEC2F(200, 200)),
-      LINE_APPEND(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), LINEDEF_TRANSPARENT_WALL, VEC2F(200, 50)),
-      LINE_FINISH(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), LINEDEF_TRANSPARENT_WALL)
+      LINE_CREATE(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), 0, VEC2F(50,  50), VEC2F(50, 200)),
+      LINE_APPEND(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), 0, VEC2F(200, 200)),
+      LINE_APPEND(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), 0, VEC2F(200, 50)),
+      LINE_FINISH(TEXLIST(STONEWALL_TEXTURE, METAL_BARS), 0)
     ));
 
     /* 4: End sector construction */
@@ -515,9 +515,9 @@ create_demo_level(void)
      * This is mostly for transparent static objects in the game world. Grass on
      * the ground, cobwebs, a hanging lamp etc.
      */
-    // level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
-    //   LINE_CREATE(TEXLIST(METAL_BARS), LINEDEF_STATIC_DETAIL, VEC2F(60, 60), VEC2F(190, 190))
-    // ));
+    level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+      LINE_CREATE(TEXLIST(METAL_BARS), LINEDEF_STATIC_DETAIL, VEC2F(60, 60), VEC2F(190, 190))
+    ));
     level_data_end_sector();
   }
 
