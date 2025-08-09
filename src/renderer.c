@@ -700,7 +700,7 @@ draw_object_segment(const renderer *this, const ray_intersection *intersection, 
  *   3. Basic brightness and dimming
  */
 
-#define VERTICAL_FADE_DIST 2.5f
+#define VERTICAL_FADE_DIST 8.0f
 
 M_INLINED float
 calculate_horizontal_surface_light(const sector *sect, vec3f pos, bool is_floor, size_t num_lights, light **lights,

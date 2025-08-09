@@ -572,8 +572,9 @@ static void
 create_big_one(void)
 {
   demo_level = level_data_allocate();
+  demo_level->sky_texture = SKY_TEXTURE;
 
-  sector *outer_sector = level_data_begin_sector(demo_level, 0, 2048, 0.25, FLOOR_TEXTURE, CEILING_TEXTURE);
+  sector *outer_sector = level_data_begin_sector(demo_level, 0, 1024, 0.25, FLOOR_TEXTURE, TEXTURE_NONE);
   level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
     LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(0, 0), VEC2F(6144, 0)),
     LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(6144, 6144)),
@@ -582,20 +583,20 @@ create_big_one(void)
   ));
   level_data_end_sector();
 
-  const int w = 20;
-  const int h = 20;
-  const int size = 256;
+  const int w = 40;
+  const int h = 40;
+  const int size = 128;
 
   int x, y, c, f;
   vec2f v0, v1, v2, v3;
 
   for (y = 0; y < h; ++y) {
     for (x = 0; x < w; ++x) {
-      if (rand() % 20 == 5) {
+      if (rand() % 5 == 1) {
         c = f = 0;
       } else {
-        f = 256 + 32 * (rand() % 8);
-        c = 1440 - 64 * (rand() % 12);
+        f = -64 + 32 * (rand() % 4);
+        c = 320 - 32 * (rand() % 6);
       }
 
       v0 = VEC2F(512+x*size, 512+y*size);
@@ -627,7 +628,7 @@ create_big_one(void)
         ));
       }
 
-      level_data_begin_sector(demo_level, f, c, 0.5, FLOOR_TEXTURE, CEILING_TEXTURE);
+      level_data_begin_sector(demo_level, f, c, 0.25, FLOOR_TEXTURE, CEILING_TEXTURE);
       level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
         LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, v1),
         LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v2),
@@ -640,7 +641,7 @@ create_big_one(void)
 
   map_cache_process_level_data(&demo_level->cache, demo_level);
 
-  dynamic_light = level_data_add_light(demo_level, VEC3F(460, 460, 512), 1024, 1.0f);
+  dynamic_light = level_data_add_light(demo_level, VEC3F(460, 460, 512), 1024, 1.25f);
   light_z = dynamic_light->entity.z;
   light_movement_range = 400;
 }
@@ -888,8 +889,8 @@ demo_texture_sampler_scaled(
   M_UNUSED(mip_level);
 
   const SDL_Surface *surface = textures[texture];
-  const int32_t x = (int32_t)floorf(fx) & (surface->w-1); // / mip_level) * mip_level;
-  const int32_t y = (int32_t)floorf(fy) & (surface->h-1); // / mip_level) * mip_level;
+  const int32_t x = M_MOD((int32_t)floorf(fx), surface->w); // / mip_level) * mip_level;
+  const int32_t y = M_MOD((int32_t)floorf(fy), surface->h); // / mip_level) * mip_level;
   const Uint8 *p = (Uint8 *)surface->pixels + y * surface->pitch + x * SDL_BYTESPERPIXEL(surface->format);
   
   if (pixel)

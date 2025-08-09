@@ -4,6 +4,7 @@
 #define M_MAX(x, y) (((x)>(y))?(x):(y))
 #define M_MIN(x, y) (((x)<(y))?(x):(y))
 #define M_CLAMP(N, L, U) M_MAX(M_MIN(U, N), L)
+#define M_MOD(A, B) (((A) % (B) + (B)) % (B))
 #define M_BIT(B) (1<<B)
 #define M_UNUSED(x) (void)(x)
 #define M_OPTIONAL(X) X
