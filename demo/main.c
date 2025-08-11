@@ -13,6 +13,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#define MOUSELOOK_SMOOTH_FACTOR 0.7f
+
 #define SMALL_BRICKS_TEXTURE 0
 #define LARGE_BRICKS_TEXTURE 1
 #define FLOOR_TEXTURE 2
@@ -26,6 +28,7 @@
 #define STONEWALL_TEXTURE 10
 #define METAL_STONE_TEXTURE 11
 #define MIRROR_TEXTURE 12
+#define TREE_TEXURE 13
 
 SDL_Window* window = NULL;
 SDL_Renderer *sdl_renderer = NULL;
@@ -56,7 +59,8 @@ static struct {
 static SDL_Surface *textures[32];
 
 static struct {
-  float forward, turn, raise, pitch;
+  float forward, strafe, raise, pitch, mouselook_h, mouselook_v;
+  bool reset_pitch;
 } movement = { 0 };
 
 static void create_demo_level(void);
@@ -145,6 +149,9 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
     return -1;
   }
 
+  SDL_SetWindowRelativeMouseMode(window, true);
+  SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_CENTER, "1");
+
   SDL_Log("SDL renderer: %s", SDL_GetRendererName(sdl_renderer));
 
   SDL_SetRenderVSync(sdl_renderer, vsync);
@@ -178,6 +185,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
   textures[STONEWALL_TEXTURE] = IMG_Load("res/stonewall.png");
   textures[METAL_STONE_TEXTURE] = IMG_Load("res/metal_stone.png");
   textures[MIRROR_TEXTURE] = IMG_Load("res/mirror.png");
+  textures[TREE_TEXURE] = IMG_Load("res/tree_0.png");
 
   load_level(level);
 
@@ -203,8 +211,8 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
       if (event->key.key == SDLK_W) { movement.forward = 1.f; }
       else if (event->key.key == SDLK_S) { movement.forward = -1.f; }
       
-      if (event->key.key == SDLK_A) { movement.turn = 1.f; }
-      else if (event->key.key == SDLK_D) { movement.turn = -1.f; }
+      if (event->key.key == SDLK_A) { movement.strafe = -1.f; }
+      else if (event->key.key == SDLK_D) { movement.strafe = 1.f; }
       
       if (event->key.key == SDLK_Q) { movement.raise = 1.f; }
       else if (event->key.key == SDLK_Z) { movement.raise = -1.f; }
@@ -275,9 +283,9 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
       else if (event->key.key == SDLK_5) { load_level(5); }
     } else if (event->type == SDL_EVENT_KEY_UP) {
       if (event->key.key == SDLK_W || event->key.key == SDLK_S) { movement.forward = 0.f; }
-      if (event->key.key == SDLK_A || event->key.key == SDLK_D) { movement.turn = 0.f; }
+      if (event->key.key == SDLK_A || event->key.key == SDLK_D) { movement.strafe = 0.f; }
       if (event->key.key == SDLK_Q || event->key.key == SDLK_Z) { movement.raise = 0.f; }
-      if (event->key.key == SDLK_E || event->key.key == SDLK_C) { movement.pitch = 0.f; }
+      if (event->key.key == SDLK_E || event->key.key == SDLK_C) { movement.pitch = 0.f; movement.reset_pitch = true; }
 
     } else if (event->type == SDL_EVENT_WINDOW_RESIZED) {
       printf("Resize buffer to %dx%d\n", event->window.data1 / scale, event->window.data2 / scale);
@@ -288,6 +296,12 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
       if (lock_aspect_ratio) {
         SDL_SetRenderLogicalPresentation(sdl_renderer, event->window.data2*aspect_ratio, event->window.data2, SDL_LOGICAL_PRESENTATION_LETTERBOX);
       }
+    } else if (event->type == SDL_EVENT_MOUSE_MOTION) {
+      const float x_delta = event->motion.xrel * 0.18f;
+      const float y_delta = event->motion.yrel * 0.18f;
+
+      movement.mouselook_h = movement.mouselook_h * MOUSELOOK_SMOOTH_FACTOR + x_delta * (1.0f - MOUSELOOK_SMOOTH_FACTOR);
+      movement.mouselook_v = movement.mouselook_v * MOUSELOOK_SMOOTH_FACTOR + y_delta * (1.0f - MOUSELOOK_SMOOTH_FACTOR);
     }
 
     return SDL_APP_CONTINUE;
@@ -409,12 +423,12 @@ SDL_AppIterate(void *userdata)
 static void
 process_camera_movement(const float delta_time)
 {
-  if ((int)movement.forward != 0) {
-    camera_move(&cam, 400 * movement.forward * delta_time);
+  if ((int)movement.forward != 0 || (int)movement.strafe != 0) {
+    camera_move(&cam, 400 * movement.forward * delta_time, 400 * movement.strafe * delta_time);
   }
 
-  if ((int)movement.turn != 0) {
-    camera_rotate(&cam, 2.f * movement.turn * delta_time);
+  if (fabsf(movement.mouselook_h) > MATHS_EPSILON) {
+    camera_rotate(&cam, -movement.mouselook_h * delta_time);
   }
 
   if ((int)movement.raise != 0) {
@@ -423,9 +437,17 @@ process_camera_movement(const float delta_time)
 
   if ((int)movement.pitch != 0) {
     cam.pitch = math_clamp(cam.pitch+2*movement.pitch*delta_time, MIN_CAMERA_PITCH, MAX_CAMERA_PITCH);
-  } else {
-    cam.pitch *= 0.98f;
+  } else if (fabsf(movement.mouselook_v) > MATHS_EPSILON) {
+    cam.pitch = math_clamp(cam.pitch-movement.mouselook_v*delta_time, MIN_CAMERA_PITCH, MAX_CAMERA_PITCH);
+  } else if (movement.reset_pitch) {
+    cam.pitch *= 1.f-delta_time*5;
+    if (fabsf(cam.pitch) < 0.1f) {
+      movement.reset_pitch = false;
+    }
   }
+
+  movement.mouselook_h = 0;
+  movement.mouselook_v = 0;
 }
 
 static void
@@ -516,7 +538,7 @@ create_demo_level(void)
      * the ground, cobwebs, a hanging lamp etc.
      */
     level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
-      LINE_CREATE(TEXLIST(METAL_BARS), LINEDEF_STATIC_DETAIL, VEC2F(60, 60), VEC2F(190, 190))
+      LINE_CREATE(TEXLIST(TREE_TEXURE), LINEDEF_STATIC_DETAIL, VEC2F(60, 60), VEC2F(190, 190))
     ));
     level_data_end_sector();
   }
@@ -574,18 +596,20 @@ create_big_one(void)
   demo_level = level_data_allocate();
   demo_level->sky_texture = SKY_TEXTURE;
 
-  sector *outer_sector = level_data_begin_sector(demo_level, 0, 1024, 0.25, FLOOR_TEXTURE, TEXTURE_NONE);
+  sector *outer_sector = level_data_begin_sector(demo_level, 0, 1280, 0.6, FLOOR_TEXTURE, TEXTURE_NONE);
   level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
-    LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(0, 0), VEC2F(6144, 0)),
-    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(6144, 6144)),
-    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(0, 6144)),
+    LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(0, 0), VEC2F(8192, 0)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(8192, 8192)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(0, 8192)),
     LINE_FINISH(TEXLIST(LARGE_BRICKS_TEXTURE), 0)
   ));
   level_data_end_sector();
 
-  const int w = 40;
-  const int h = 40;
+  const int w = 56;
+  const int h = 56;
   const int size = 128;
+  const int min_headroom = 96;
+  int dx, dy;
 
   int x, y, c, f;
   vec2f v0, v1, v2, v3;
@@ -595,8 +619,15 @@ create_big_one(void)
       if (rand() % 5 == 1) {
         c = f = 0;
       } else {
-        f = -64 + 32 * (rand() % 4);
-        c = 320 - 32 * (rand() % 6);
+        dx = (w>>1)-abs((w>>1)-x);
+        dy = (h>>1)-abs((h>>1)-x);
+
+        f = -64 + 32 * (dx+(rand() % 4));
+        c = 320 - 32 * (-dy+(rand() % 6));
+
+        if (c-f < min_headroom) {
+          f += (int)roundf((c-f) / 32.f) * 32;
+        }
       }
 
       v0 = VEC2F(512+x*size, 512+y*size);
@@ -606,29 +637,31 @@ create_big_one(void)
 
       if (y == 0) {
         level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, v1)
+          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, METAL_BARS), f >= 192 ? LINEDEF_TRANSPARENT_WALL : 0, v0, v1)
         ));
       }
 
       if (x == 0) {
         level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v3, v0)
+          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, METAL_BARS), f >= 192 ? LINEDEF_TRANSPARENT_WALL : 0, v3, v0)
         ));
       }
 
       if (y == h-1) {
         level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v2, v3)
+          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, METAL_BARS), f >= 192 ? LINEDEF_TRANSPARENT_WALL : 0, v2, v3)
         ));
       }
 
       if (x == w-1) {
         level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v1, v2)
+          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, METAL_BARS), f >= 192 ? LINEDEF_TRANSPARENT_WALL : 0, v1, v2)
         ));
       }
 
-      level_data_begin_sector(demo_level, f, c, 0.25, FLOOR_TEXTURE, CEILING_TEXTURE);
+      bool on_edge = x==0||y==0||x==w-1||y==h-1;
+
+      level_data_begin_sector(demo_level, f, c, on_edge ? 0.55 : 0.45, FLOOR_TEXTURE, CEILING_TEXTURE);
       level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
         LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, v1),
         LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v2),
@@ -641,7 +674,7 @@ create_big_one(void)
 
   map_cache_process_level_data(&demo_level->cache, demo_level);
 
-  dynamic_light = level_data_add_light(demo_level, VEC3F(460, 460, 512), 1024, 1.25f);
+  dynamic_light = level_data_add_light(demo_level, VEC3F(460, 460, 512), 512, 1.0f);
   light_z = dynamic_light->entity.z;
   light_movement_range = 400;
 }

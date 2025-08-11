@@ -16,7 +16,7 @@ void
 camera_init(camera *this, struct level_data *level);
 
 void
-camera_move(camera *this, float movement);
+camera_move(camera *this, float movement, float strafe);
 
 void
 camera_rotate(camera *this, float rotation);

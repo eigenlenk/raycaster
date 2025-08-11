@@ -117,7 +117,7 @@ level_data_begin_sector(
 }
 
 void
-level_data_end_sector()
+level_data_end_sector(void)
 {
   open_sector = NULL;
 }

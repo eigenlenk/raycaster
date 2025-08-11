@@ -13,9 +13,9 @@ typedef struct level_data {
          linedefs_count,
          vertices_count,
          lights_count;
-  vertex vertices[16384];
-  linedef linedefs[8192];
-  sector sectors[2048];
+  vertex vertices[32768];
+  linedef linedefs[16384];
+  sector sectors[8192];
   light lights[64];
   vec2f min,
         max;
@@ -42,7 +42,7 @@ typedef struct line_dto {
 #define LINE_FINISH(T, F        ) ((struct line_dto) { VERT_APPEND, VERT_FINISH, T, F })
 
 M_INLINED level_data*
-level_data_allocate()
+level_data_allocate(void)
 {
   level_data *new_data = malloc(sizeof(level_data));
   new_data->sectors_count = 0;
@@ -63,7 +63,7 @@ sector*
 level_data_begin_sector(level_data*, int32_t, int32_t, float, texture_ref, texture_ref);
 
 void
-level_data_end_sector();
+level_data_end_sector(void);
 
 void
 level_data_update_sector_lines(level_data*, sector*, size_t, line_dto[]);

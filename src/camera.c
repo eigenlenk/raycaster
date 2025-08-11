@@ -26,9 +26,10 @@ camera_init(camera *this, level_data *level)
 }
 
 void
-camera_move(camera *this, float distance)
+camera_move(camera *this, float forward, float strafe)
 {
-  this->entity.position = vec2f_add(this->entity.position, vec2f_mul(this->entity.direction, distance));
+  this->entity.position = vec2f_add(this->entity.position, vec2f_mul(this->entity.direction, forward));
+  this->entity.position = vec2f_add(this->entity.position, vec2f_mul(math_vec2f_perpendicular(this->entity.direction), strafe));
 
   if (!sector_point_inside(this->entity.sector, this->entity.position)) {
     find_current_sector(this);
