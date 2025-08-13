@@ -13,7 +13,7 @@ typedef struct camera {
 } camera;
 
 void
-camera_init(camera *this, struct level_data *level);
+camera_init(camera *this, struct level_data *level, vec2f position, vec2f direction);
 
 void
 camera_move(camera *this, float movement, float strafe);

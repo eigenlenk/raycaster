@@ -551,7 +551,7 @@ draw_column_intersection(
     draw_mirror(this, intersection, column);
   } else if (fside->flags & LINEDEF_FREESTANDING) {
     draw_object_segment(this, intersection, column);
-  } else if (intersection->next || (!intersection->next && fside->texture[LINE_TEXTURE_MIDDLE] == TEXTURE_NONE)) {
+  } else if (intersection->next || (intersection->back_sector && intersection->back_sector->floor.height == intersection->back_sector->ceiling.height)) {
     draw_segmented_wall(this, intersection, column);
   } else {
     draw_full_wall(this, intersection, column);
@@ -565,8 +565,12 @@ draw_full_wall(const renderer *this, const ray_intersection *intersection, colum
   const float sy = ceilf(M_MAX(intersection->cz_local, column->top_limit));
   const float ey = M_CLAMP(intersection->fz_local, column->top_limit, column->bottom_limit);
 
-  draw_wall_segment(this, intersection, column, sy, ey, sy - this->frame_info.half_h - intersection->vz_scaled, fside->texture[LINE_TEXTURE_MIDDLE]);
-  
+  if (fside->texture[LINE_TEXTURE_MIDDLE] != TEXTURE_NONE) {
+    draw_wall_segment(this, intersection, column, sy, ey, sy - this->frame_info.half_h - intersection->vz_scaled, fside->texture[LINE_TEXTURE_MIDDLE]);
+  } else {
+    draw_sky_segment(this, intersection, column, sy, ey);
+  }
+
   if (intersection->front_sector->ceiling.texture != TEXTURE_NONE) {
     draw_ceiling_segment(this, intersection, column, column->top_limit, M_MIN(sy, column->bottom_limit));
   } else {

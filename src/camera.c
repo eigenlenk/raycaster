@@ -6,14 +6,14 @@ static void
 find_current_sector(camera *this);
 
 void
-camera_init(camera *this, level_data *level)
+camera_init(camera *this, level_data *level, vec2f position, vec2f direction)
 {
   this->entity = (entity) {
     .level = level,
     .sector = NULL,
-    .position = VEC2F(30, 30),
+    .position = position,
     .z = 64,
-    .direction = vec2f_make(1, 0),
+    .direction = direction,
     .data = (void*)this,
     .type = ENTITY_CAMERA
   };

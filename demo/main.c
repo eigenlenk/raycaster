@@ -52,7 +52,7 @@ static bool info_text_visible = true;
 
 static struct {
   sector *ref;
-  int direction, distance;
+  int direction, distance, range;
   float timer;
 } moving_sector;
 
@@ -67,7 +67,6 @@ static void create_demo_level(void);
 static void create_grid_level(void);
 static void create_big_one(void);
 static void create_semi_intersecting_sectors(void);
-static void create_crossing_and_splitting_sectors(void);
 static void create_mirrors_and_large_sky(void);
 static void load_level(int);
 static void process_camera_movement(const float delta_time);
@@ -363,7 +362,7 @@ SDL_AppIterate(void *userdata)
         moving_sector.ref->ceiling.height -= moving_sector.direction;
         moving_sector.distance ++;
 
-        if (moving_sector.distance >= 200) {
+        if (moving_sector.distance >= moving_sector.range) {
           moving_sector.direction = 1;
           moving_sector.distance = 0;
         }
@@ -484,6 +483,8 @@ create_grid_level(void)
   }
 
   map_cache_process_level_data(&demo_level->cache, demo_level);
+
+  camera_init(&cam, demo_level, VEC2F(50, 50), VEC2F(1, 0));
 }
 
 static void
@@ -572,6 +573,7 @@ create_demo_level(void)
   }
 
   {
+    moving_sector.range = 200;
     moving_sector.direction = rand() % 2 ? 1 : -1;
     moving_sector.ref = level_data_begin_sector(demo_level, 128, 128, 0.15, FLOOR_TEXTURE, CEILING_TEXTURE);
     level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
@@ -588,6 +590,8 @@ create_demo_level(void)
   dynamic_light = level_data_add_light(demo_level, VEC3F(200, 600, 64), 300, 1.0f);
   light_z = dynamic_light->entity.z;
   light_movement_range = 48;
+
+  camera_init(&cam, demo_level, VEC2F(40, 40), VEC2F(1, 0));
 }
 
 static void
@@ -697,6 +701,8 @@ create_big_one(void)
   dynamic_light = level_data_add_light(demo_level, VEC3F(460, 460, 512), 512, 1.0f);
   light_z = dynamic_light->entity.z;
   light_movement_range = 400;
+
+  camera_init(&cam, demo_level, VEC2F(50, 50), VEC2F(1, 0));
 }
 
 #ifdef OTHER_LEVELS
@@ -800,38 +806,72 @@ create_semi_intersecting_sectors(void)
   map_builder_free(&builder);
 }
 
-static void
-create_crossing_and_splitting_sectors(void)
-{
-  map_builder builder = { 0 };
-
-  map_builder_add_polygon(&builder, 0, 128, 0.1f, WALLTEX(LARGE_BRICKS_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
-    VEC2F(-500, 0),
-    VEC2F(1000, 0),
-    VEC2F(1000, 100),
-    VEC2F(-500, 100)
-  ));
-
-  /* This sector will split the first one so you end up with 3 sectors */
-  map_builder_add_polygon(&builder, -32, 96, 0.1f, WALLTEX(LARGE_BRICKS_TEXTURE), FLOOR_TEXTURE, CEILING_TEXTURE, VERTICES(
-    VEC2F(225, -250),
-    VEC2F(325, -250),
-    VEC2F(325, 250),
-    VEC2F(225, 250)
-  ));
-
-  demo_level = map_builder_build(&builder);
-
-  dynamic_light = level_data_add_light(demo_level, VEC3F(250, 50, 50), 200, 0.5f);
-  light_z = dynamic_light->entity.z;
-  light_movement_range = 24;
-
-  map_builder_free(&builder);
-}
+#endif
 
 static void
 create_mirrors_and_large_sky(void)
 {
+  demo_level = level_data_allocate();
+  demo_level->sky_texture = SKY_TEXTURE;
+
+  /* FIRST AREA */
+  level_data_begin_sector(demo_level, 0, 256, 0.75, FLOOR_TEXTURE, TEXTURE_NONE);
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, MIRROR_TEXTURE), LINEDEF_MIRROR, VEC2F(-500, -500), VEC2F(500, -500)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(500, -50)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(500, 50)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(500, 500)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE, MIRROR_TEXTURE), LINEDEF_MIRROR, VEC2F(-500, 500)),
+    LINE_FINISH(TEXLIST(LARGE_BRICKS_TEXTURE, MIRROR_TEXTURE), LINEDEF_MIRROR)
+  ));
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(METAL_STONE_TEXTURE), LINEDEF_PIN_TEXTURES, VEC2F(-100, -100), VEC2F(100, -100)),
+    LINE_APPEND(TEXLIST(METAL_STONE_TEXTURE), LINEDEF_PIN_TEXTURES, VEC2F(100, 100)),
+    LINE_APPEND(TEXLIST(METAL_STONE_TEXTURE), LINEDEF_PIN_TEXTURES, VEC2F(-100, 100)),
+    LINE_FINISH(TEXLIST(METAL_STONE_TEXTURE), LINEDEF_PIN_TEXTURES)
+  ));
+  level_data_end_sector();
+
+  /* PLATFORM */
+  moving_sector.range = 96;
+  moving_sector.direction = rand() % 2 ? 1 : -1;
+  moving_sector.ref = level_data_begin_sector(demo_level, 32, 224, 0.6, METAL_STONE_TEXTURE, METAL_STONE_TEXTURE);
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(-100, -100), VEC2F(100, -100)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(100, 100)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(-100, 100)),
+    LINE_FINISH(TEXLIST(LARGE_BRICKS_TEXTURE), 0)
+  ));
+  level_data_end_sector();
+
+  /* SECOND AREA */
+  level_data_begin_sector(demo_level, 0, 224, 0.75, GRASS_TEXTURE, TEXTURE_NONE);
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(1000, -500), VEC2F(2000, -500)),
+    LINE_APPEND(TEXLIST(TEXTURE_NONE), 0, VEC2F(2000, 500)),
+    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(1000, 500)),
+    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(1000, 50)),
+    LINE_APPEND(TEXLIST(STONEWALL_TEXTURE), 0, VEC2F(1000, -50)),
+    LINE_FINISH(TEXLIST(STONEWALL_TEXTURE), 0)
+  ));
+  level_data_end_sector();
+
+  /* CORRIDOR BETWEEN AREAS */
+  level_data_begin_sector(demo_level, 32, 160, 0.5, FLOOR_TEXTURE, CEILING_TEXTURE);
+  level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
+    LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(500, -50), VEC2F(1000, -50)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(1000, 50)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(500, 50)),
+    LINE_FINISH(TEXLIST(LARGE_BRICKS_TEXTURE), 0)
+  ));
+  level_data_end_sector();
+
+  map_cache_process_level_data(&demo_level->cache, demo_level);
+
+  camera_init(&cam, demo_level, VEC2F(150, 150), VEC2F(1, 0));
+
+#ifdef GFDGFGFD
+
   map_builder builder = { 0 };
 
   /* First area */
@@ -899,8 +939,8 @@ create_mirrors_and_large_sky(void)
   light_movement_range = 88;
 
   map_builder_free(&builder);
+  #endif
 }
-#endif
 
 static void
 load_level(int n)
@@ -918,12 +958,9 @@ load_level(int n)
   case 1: create_demo_level(); break;
   case 2: create_big_one(); break;
   // case 3: create_semi_intersecting_sectors(); break;
-  // case 4: create_crossing_and_splitting_sectors(); break;
-  // case 5: create_mirrors_and_large_sky(); break;
+  case 4: create_mirrors_and_large_sky(); break;
   default: create_grid_level(); break;
   }
-
-  camera_init(&cam, demo_level);
 }
 
 /*
