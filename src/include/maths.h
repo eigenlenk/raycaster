@@ -199,7 +199,7 @@ math_line_segment_point_distance(vec2f a, vec2f b, vec2f point) {
   if (ab_len2 <= MATHS_EPSILON) {
     return math_length(vec2f_sub(point, a));
   }
-  float t = math_dot2(ap, ap) / ab_len2;
+  float t = math_dot2(ap, ab) / ab_len2;
   t = fmaxf(0.0f, fminf(1.0f, t));
   return math_length(vec2f_sub(point, VEC2F(a.x + t * ab.x, a.y + t * ab.y)));
 }

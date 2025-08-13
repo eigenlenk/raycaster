@@ -13,7 +13,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define MOUSELOOK_SMOOTH_FACTOR 0.7f
+#define MOUSELOOK_SMOOTH_FACTOR 0.5f
 
 #define SMALL_BRICKS_TEXTURE 0
 #define LARGE_BRICKS_TEXTURE 1
@@ -297,8 +297,8 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
         SDL_SetRenderLogicalPresentation(sdl_renderer, event->window.data2*aspect_ratio, event->window.data2, SDL_LOGICAL_PRESENTATION_LETTERBOX);
       }
     } else if (event->type == SDL_EVENT_MOUSE_MOTION) {
-      const float x_delta = event->motion.xrel * 0.18f;
-      const float y_delta = event->motion.yrel * 0.18f;
+      const float x_delta = event->motion.xrel * 0.24f;
+      const float y_delta = event->motion.yrel * 0.24f;
 
       movement.mouselook_h = movement.mouselook_h * MOUSELOOK_SMOOTH_FACTOR + x_delta * (1.0f - MOUSELOOK_SMOOTH_FACTOR);
       movement.mouselook_v = movement.mouselook_v * MOUSELOOK_SMOOTH_FACTOR + y_delta * (1.0f - MOUSELOOK_SMOOTH_FACTOR);
