@@ -635,31 +635,51 @@ create_big_one(void)
       v2 = VEC2F(512+x*size + size, 512+y*size + size);
       v3 = VEC2F(512+x*size, 512+y*size + size);
 
-      if (y == 0) {
-        level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, METAL_BARS), f >= 192 ? LINEDEF_TRANSPARENT_WALL : 0, v0, v1)
-        ));
+      if (!f && !c) {
+        if (y == 0) {
+          level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, v1)
+          ));
+        } else if (y == h-1) {
+          level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v2, v3)
+          ));
+        }
+
+        if (x == 0) {
+          level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v3, v0)
+          ));
+        } else if (x == w-1) {
+          level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v1, v2)
+          ));
+        }
+
+        continue;
+      } else {
+        if (y == 0) {
+          level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, METAL_BARS), f >= 192 ? LINEDEF_TRANSPARENT_WALL : 0, v0, v1)
+          ));
+        } else if (y == h-1) {
+          level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, METAL_BARS), f >= 192 ? LINEDEF_TRANSPARENT_WALL : 0, v2, v3)
+          ));
+        }
+
+        if (x == 0) {
+          level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, METAL_BARS), f >= 192 ? LINEDEF_TRANSPARENT_WALL : 0, v3, v0)
+          ));
+        } else if (x == w-1) {
+          level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, METAL_BARS), f >= 192 ? LINEDEF_TRANSPARENT_WALL : 0, v1, v2)
+          ));
+        }
       }
 
-      if (x == 0) {
-        level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, METAL_BARS), f >= 192 ? LINEDEF_TRANSPARENT_WALL : 0, v3, v0)
-        ));
-      }
-
-      if (y == h-1) {
-        level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, METAL_BARS), f >= 192 ? LINEDEF_TRANSPARENT_WALL : 0, v2, v3)
-        ));
-      }
-
-      if (x == w-1) {
-        level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-          LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE, METAL_BARS), f >= 192 ? LINEDEF_TRANSPARENT_WALL : 0, v1, v2)
-        ));
-      }
-
-      bool on_edge = x==0||y==0||x==w-1||y==h-1;
+      const bool on_edge = x==0||y==0||x==w-1||y==h-1;
 
       level_data_begin_sector(demo_level, f, c, on_edge ? 0.55 : 0.45, FLOOR_TEXTURE, CEILING_TEXTURE);
       level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
