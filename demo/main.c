@@ -29,6 +29,8 @@
 #define METAL_STONE_TEXTURE 11
 #define MIRROR_TEXTURE 12
 #define TREE_TEXURE 13
+#define FLOOR1_TEXTURE 14
+#define LARGE_BRICKS_B_TEXTURE 15
 
 SDL_Window* window = NULL;
 SDL_Renderer *sdl_renderer = NULL;
@@ -185,6 +187,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
   textures[METAL_STONE_TEXTURE] = IMG_Load("res/metal_stone.png");
   textures[MIRROR_TEXTURE] = IMG_Load("res/mirror.png");
   textures[TREE_TEXURE] = IMG_Load("res/tree_0.png");
+  textures[FLOOR1_TEXTURE] = IMG_Load("res/floor1.png");
+  textures[LARGE_BRICKS_B_TEXTURE] = IMG_Load("res/large_bricks_b.png");
 
   load_level(level);
 
@@ -600,7 +604,7 @@ create_big_one(void)
   demo_level = level_data_allocate();
   demo_level->sky_texture = SKY_TEXTURE;
 
-  sector *outer_sector = level_data_begin_sector(demo_level, 0, 1280, 0.6, FLOOR_TEXTURE, TEXTURE_NONE);
+  sector *outer_sector = level_data_begin_sector(demo_level, -16, 1280, 0.6, GRASS_TEXTURE, TEXTURE_NONE);
   level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
     LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(0, 0), VEC2F(8192, 0)),
     LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(8192, 8192)),
@@ -641,9 +645,17 @@ create_big_one(void)
 
       if (!f && !c) {
         if (y == 0) {
-          level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, v1)
+          if (x == 0) {
+            level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+              LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, v1)
+            ));
+          } else {
+            level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
+            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, vec2f_sub(v0, VEC2F(0, 50))),
+            LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, vec2f_sub(v1, VEC2F(0, 50))),
+            LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v1)
           ));
+          }
         } else if (y == h-1) {
           level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
             LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v2, v3)
@@ -652,7 +664,9 @@ create_big_one(void)
 
         if (x == 0) {
           level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v3, v0)
+            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v3, vec2f_add(v3, VEC2F(-50, 0))),
+            LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, vec2f_add(v0, VEC2F(-50, 0))),
+            LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0)
           ));
         } else if (x == w-1) {
           level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
@@ -685,7 +699,7 @@ create_big_one(void)
 
       const bool on_edge = x==0||y==0||x==w-1||y==h-1;
 
-      level_data_begin_sector(demo_level, f, c, on_edge ? 0.55 : 0.45, FLOOR_TEXTURE, CEILING_TEXTURE);
+      level_data_begin_sector(demo_level, f, c, on_edge ? 0.55 : 0.45, (f%96==0) ? FLOOR1_TEXTURE : FLOOR_TEXTURE, CEILING_TEXTURE);
       level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
         LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, v1),
         LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v2),
