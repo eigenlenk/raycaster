@@ -21,6 +21,7 @@ typedef struct level_data {
         max;
   map_cache cache;
   texture_ref sky_texture;
+  float brightness;
 } level_data;
 
 typedef struct line_dto {
@@ -50,6 +51,7 @@ level_data_allocate(void)
   new_data->vertices_count = 0;
   new_data->lights_count = 0;
   new_data->sky_texture = TEXTURE_NONE;
+  new_data->brightness = 0; /* Global adjustent on sector brightness */
   return new_data;
 }
 

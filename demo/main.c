@@ -258,9 +258,17 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
       }
 
       if (event->key.key == SDLK_K) {
-        cam.entity.sector->brightness = M_MAX(0.f, cam.entity.sector->brightness - 0.1f);
+        if (event->key.mod & SDL_KMOD_SHIFT) {
+          demo_level->brightness = M_MAX(-1.f, demo_level->brightness - 0.05f);
+        } else {
+          cam.entity.sector->brightness = M_MAX(0.f, cam.entity.sector->brightness - 0.05f);
+        }
       } else if (event->key.key == SDLK_L) {
-        cam.entity.sector->brightness = M_MIN(4.f, cam.entity.sector->brightness + 0.1f);
+        if (event->key.mod & SDL_KMOD_SHIFT) {
+          demo_level->brightness = M_MIN(4.f, demo_level->brightness + 0.05f);
+        } else {
+          cam.entity.sector->brightness = M_MIN(4.f, cam.entity.sector->brightness + 0.05f);
+        }
       }
 
       if (event->key.key == SDLK_M) {
@@ -399,6 +407,9 @@ SDL_AppIterate(void *userdata)
       cam.entity.direction.x, cam.entity.direction.y,
       cam.plane.x, cam.plane.y,
       cam.fov); y+=h;
+    SDL_RenderDebugTextFormat(sdl_renderer, 4, y, "[Level] Ptr: 0x%p | Bright: %.2f",
+      (void*)demo_level,
+      demo_level->brightness); y+=h;
     SDL_RenderDebugTextFormat(sdl_renderer, 4, y, "[Sector] Ptr: 0x%p | Floor: %d | Ceiling: %d | Bright: %.2f",
       (void*)cam.entity.sector,
       cam.entity.sector->floor.height,
@@ -412,7 +423,7 @@ SDL_AppIterate(void *userdata)
     SDL_RenderDebugText(sdl_renderer, 4, y, "[O P] - Zoom out/in"); y+=h;
     SDL_RenderDebugText(sdl_renderer, 4, y, "[Home End] - Raise/lower sector ceiling"); y+=h;
     SDL_RenderDebugText(sdl_renderer, 4, y, "[PgUp PgDn] - Raise/lower sector floor"); y+=h;
-    SDL_RenderDebugText(sdl_renderer, 4, y, "[K L] - Change sector brightness"); y+=h;
+    SDL_RenderDebugText(sdl_renderer, 4, y, "[K L] - Change sector brightness (+[shift]=global)"); y+=h;
     SDL_RenderDebugText(sdl_renderer, 4, y, "[H] - Toggle on-screen info"); y+=h;
     SDL_RenderDebugText(sdl_renderer, 4, y, "[F] - Toggle fullscreen"); y+=h;
     SDL_RenderDebugText(sdl_renderer, 4, y, "[0 ... 5] - Change level"); y+=h;
@@ -470,6 +481,7 @@ create_grid_level(void)
     for (x = 0; x < w; ++x) {
       if (rand() % 20 == 5) {
         c = f = 0;
+        continue;
       } else {
         f = 16 * (rand() % 10);
         c = 1024 - 32 * (rand() % 24);
@@ -604,20 +616,20 @@ create_big_one(void)
   demo_level = level_data_allocate();
   demo_level->sky_texture = SKY_TEXTURE;
 
-  sector *outer_sector = level_data_begin_sector(demo_level, -16, 1280, 0.6, GRASS_TEXTURE, TEXTURE_NONE);
+  sector *outer_sector = level_data_begin_sector(demo_level, -16, 1280, 0.65, GRASS_TEXTURE, TEXTURE_NONE);
   level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
-    LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(0, 0), VEC2F(8192, 0)),
-    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(8192, 8192)),
-    LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, VEC2F(0, 8192)),
-    LINE_FINISH(TEXLIST(LARGE_BRICKS_TEXTURE), 0)
+    LINE_CREATE(TEXLIST(LARGE_BRICKS_B_TEXTURE), 0, VEC2F(0, 0), VEC2F(8192, 0)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_B_TEXTURE), 0, VEC2F(8192, 8192)),
+    LINE_APPEND(TEXLIST(LARGE_BRICKS_B_TEXTURE), 0, VEC2F(0, 8192)),
+    LINE_FINISH(TEXLIST(LARGE_BRICKS_B_TEXTURE), 0)
   ));
   level_data_end_sector();
 
   const int w = 56;
   const int h = 56;
   const int size = 128;
-  const int min_headroom = 96;
-  int dx, dy;
+  const int min_headroom = 128;
+  int dx, dy, dc, hw = w>>1, hh = h>>1;
 
   int x, y, c, f;
   vec2f v0, v1, v2, v3;
@@ -625,17 +637,16 @@ create_big_one(void)
   for (y = 0; y < h; ++y) {
     for (x = 0; x < w; ++x) {
       if (rand() % 5 == 1) {
-        c = f = 0;
+        c = f = 0; // Full column
       } else {
-        dx = (w>>1)-abs((w>>1)-x);
-        dy = (h>>1)-abs((h>>1)-x);
+        dx = hw-abs(hw-x);
+        dy = hh-abs(hh-y);
+        dc = M_MAX(hw, hh) - (int)math_vec2f_distance(VEC2F(hw, hh), VEC2F(x, y));
 
-        f = -64 + 32 * (dx+(rand() % 4));
-        c = 320 - 32 * (-dy+(rand() % 6));
+        if (dc < 0) { dc = 0; }
 
-        if (c-f < min_headroom) {
-          f += (int)roundf((c-f) / 32.f) * 32;
-        }
+        f = -64 + 32 * (((dx+dy)/2)+(rand() % 4)) + dc/6 * 32;
+        c = f + min_headroom + ((dx^dy)%5+rand()%3)*32 + dc/4 * 32;
       }
 
       v0 = VEC2F(512+x*size, 512+y*size);
@@ -644,6 +655,7 @@ create_big_one(void)
       v3 = VEC2F(512+x*size, 512+y*size + size);
 
       if (!f && !c) {
+        // Outer sectors needs the lines of full columns facing itself
         if (y == 0) {
           if (x == 0) {
             level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
@@ -651,14 +663,16 @@ create_big_one(void)
             ));
           } else {
             level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, vec2f_sub(v0, VEC2F(0, 50))),
-            LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, vec2f_sub(v1, VEC2F(0, 50))),
-            LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v1)
-          ));
+              LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, vec2f_sub(v0, VEC2F(0, 50))),
+              LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, vec2f_sub(v1, VEC2F(0, 50))),
+              LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v1)
+            ));
           }
         } else if (y == h-1) {
           level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v2, v3)
+            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v2, vec2f_add(v2, VEC2F(0, 50))),
+            LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, vec2f_add(v3, VEC2F(0, 50))),
+            LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v3)
           ));
         }
 
@@ -670,7 +684,9 @@ create_big_one(void)
           ));
         } else if (x == w-1) {
           level_data_update_sector_lines(demo_level, outer_sector, M_ARRAY(line_dto,
-            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v1, v2)
+            LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v1, vec2f_add(v1, VEC2F(50, 0))),
+            LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, vec2f_add(v2, VEC2F(50, 0))),
+            LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v2)
           ));
         }
 
@@ -697,14 +713,15 @@ create_big_one(void)
         }
       }
 
-      const bool on_edge = x==0||y==0||x==w-1||y==h-1;
+      // const bool on_edge = x==0||y==0||x==w-1||y==h-1;
+      const bool open_ceiling = c>=1280;
 
-      level_data_begin_sector(demo_level, f, c, on_edge ? 0.55 : 0.45, (f%96==0) ? FLOOR1_TEXTURE : FLOOR_TEXTURE, CEILING_TEXTURE);
+      level_data_begin_sector(demo_level, f, open_ceiling?1408:c, open_ceiling?0.65:0.45, f<0?DIRT_TEXTURE:(f%96==0)?FLOOR1_TEXTURE:FLOOR_TEXTURE, c>=1280?TEXTURE_NONE:CEILING_TEXTURE);
       level_data_update_sector_lines(demo_level, NULL, M_ARRAY(line_dto,
-        LINE_CREATE(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v0, v1),
-        LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v2),
-        LINE_APPEND(TEXLIST(LARGE_BRICKS_TEXTURE), 0, v3),
-        LINE_FINISH(TEXLIST(LARGE_BRICKS_TEXTURE), 0)
+        LINE_CREATE(TEXLIST(y==0?DIRT_TEXTURE:LARGE_BRICKS_TEXTURE), 0, v0, v1),
+        LINE_APPEND(TEXLIST(x==w-1?DIRT_TEXTURE:LARGE_BRICKS_TEXTURE), 0, v2),
+        LINE_APPEND(TEXLIST(y==h-1?DIRT_TEXTURE:LARGE_BRICKS_TEXTURE), 0, v3),
+        LINE_FINISH(TEXLIST(x==0?DIRT_TEXTURE:LARGE_BRICKS_TEXTURE), 0)
       ));
       level_data_end_sector();
     }

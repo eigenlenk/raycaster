@@ -707,7 +707,7 @@ draw_object_segment(const renderer *this, const ray_intersection *intersection, 
 #define VERTICAL_FADE_DIST 8.0f
 
 M_INLINED float
-calculate_horizontal_surface_light(const sector *sect, vec3f pos, bool is_floor, size_t num_lights, light **lights,
+calculate_horizontal_surface_light(const sector *sect, float brightness, vec3f pos, bool is_floor, size_t num_lights, light **lights,
 #if RAYCASTER_LIGHT_STEPS > 0
   uint8_t steps
 #else
@@ -717,7 +717,7 @@ calculate_horizontal_surface_light(const sector *sect, vec3f pos, bool is_floor,
   size_t i;
   vec3f world_pos;
   light *lt;
-  float dz, v = sect->brightness, dsq;
+  float dz, v = brightness, dsq;
 
   for (i = 0; i < num_lights; ++i) {
     lt = lights[i];
@@ -754,7 +754,7 @@ calculate_horizontal_surface_light(const sector *sect, vec3f pos, bool is_floor,
 
 
 M_INLINED float
-calculate_vertical_surface_light(const sector *sect, vec3f pos, size_t num_lights, light **lights,
+calculate_vertical_surface_light(float brightness, vec3f pos, size_t num_lights, light **lights,
 #if RAYCASTER_LIGHT_STEPS > 0
   uint8_t steps
 #else
@@ -764,7 +764,7 @@ calculate_vertical_surface_light(const sector *sect, vec3f pos, size_t num_light
   size_t i;
   light *lt;
   vec3f world_pos;
-  float v = sect->brightness, dsq;
+  float v = brightness, dsq;
 
   for (i = 0; i < num_lights; ++i) {
     lt = lights[i];
@@ -794,7 +794,7 @@ calculate_vertical_surface_light(const sector *sect, vec3f pos, size_t num_light
 }
 
 M_INLINED float
-calculate_basic_brightness(const float base,
+calculate_basic_brightness(const float brightness,
 #if RAYCASTER_LIGHT_STEPS > 0
   uint8_t steps
 #else
@@ -804,9 +804,9 @@ calculate_basic_brightness(const float base,
   return math_max(
     0.f,
 #if RAYCASTER_LIGHT_STEPS > 0
-    ((uint8_t)(base * LIGHT_STEP_VALUE_CHANGE_INVERSE) * LIGHT_STEP_VALUE_CHANGE) - (steps * LIGHT_STEP_VALUE_CHANGE)
+    ((uint8_t)(brightness * LIGHT_STEP_VALUE_CHANGE_INVERSE) * LIGHT_STEP_VALUE_CHANGE) - (steps * LIGHT_STEP_VALUE_CHANGE)
 #else
-    base - light_falloff
+    brightness - light_falloff
 #endif
   );
 }
@@ -836,7 +836,7 @@ draw_wall_segment(
   uint8_t lights_count      = side->segments[segment].lights_count;
   struct light **lights     = side->segments[segment].lights;
   register float light      = !lights_count ? calculate_basic_brightness(
-      intersection->front_sector->brightness,
+      this->frame_info.level->brightness + intersection->front_sector->brightness,
 #if RAYCASTER_LIGHT_STEPS > 0
       intersection->distance_steps
 #else
@@ -855,7 +855,7 @@ draw_wall_segment(
 
     light = lights_count ?
       calculate_vertical_surface_light(
-        intersection->front_sector,
+        this->frame_info.level->brightness + intersection->front_sector->brightness,
         VEC3F(intersection->point.x, intersection->point.y, -texture_y),
         lights_count,
         lights,
@@ -898,6 +898,7 @@ draw_floor_segment(
   register uint32_t y, yz;
   register float light=-1, distance, weight, wx, wy;
   const float distance_from_view = (this->frame_info.view_z - intersection->front_sector->floor.height) * this->frame_info.unit_size;
+  const float brightness = this->frame_info.level->brightness + intersection->front_sector->brightness;
   uint32_t *p = column->buffer_start + (from*column->buffer_stride);
   uint8_t rgb[3], lights_count;
   map_cache_cell *cell;
@@ -918,6 +919,7 @@ draw_floor_segment(
 
     light = lights_count ? calculate_horizontal_surface_light(
       intersection->front_sector,
+      brightness,
       VEC3F(wx, wy, intersection->front_sector->floor.height),
       true,
       lights_count,
@@ -928,7 +930,7 @@ draw_floor_segment(
       distance * DIMMING_DISTANCE_INVERSE
 #endif
     ) : calculate_basic_brightness(
-      intersection->front_sector->brightness,
+      this->frame_info.level->brightness + intersection->front_sector->brightness,
 #if RAYCASTER_LIGHT_STEPS > 0
       distance * LIGHT_STEP_DISTANCE_INVERSE
 #else
@@ -967,6 +969,7 @@ draw_ceiling_segment(
   register uint32_t y, yz;
   register float light=-1, distance, weight, wx, wy;
   const float distance_from_view = (intersection->front_sector->ceiling.height - this->frame_info.view_z) * this->frame_info.unit_size;
+  const float brightness = this->frame_info.level->brightness + intersection->front_sector->brightness;
   uint32_t *p = column->buffer_start + (from*column->buffer_stride);
   uint8_t rgb[3], lights_count;
   map_cache_cell *cell;
@@ -987,6 +990,7 @@ draw_ceiling_segment(
 
     light = lights_count ? calculate_horizontal_surface_light(
       intersection->front_sector,
+      brightness,
       VEC3F(wx, wy, intersection->front_sector->ceiling.height),
       false,
       lights_count,
@@ -997,7 +1001,7 @@ draw_ceiling_segment(
       distance * DIMMING_DISTANCE_INVERSE
 #endif
     ) : calculate_basic_brightness(
-      intersection->front_sector->brightness,
+      this->frame_info.level->brightness + intersection->front_sector->brightness,
 #if RAYCASTER_LIGHT_STEPS > 0
       distance * LIGHT_STEP_DISTANCE_INVERSE
 #else
