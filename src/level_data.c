@@ -1,14 +1,30 @@
 #include "level_data.h"
 #include "polygon.h"
+#include <gpc.h>
 #include <assert.h>
 
 #define XY(V) (int)V.x, (int)V.y
+
+static struct {
+  struct {
+    size_t count;
+    sector *list[32];
+    sector *top;
+  } sectors;
+} open_context = { 0 };
 
 static linedef*
 level_data_get_linedef(level_data*, vertex*, vertex*, int*);
 
 static bool
 linedef_segment_contains_light(const linedef_segment*, const light*);
+
+static void
+subtract_top_sector_if_needed(void);
+
+/* Maps vertices from polygon type to GPC polygon */
+static void
+sector_to_gpc_polygon(const sector *sect, gpc_polygon *gpc_poly);
 
 /* FIND a vertex at given point OR CREATE a new one */
 vertex*
@@ -44,7 +60,6 @@ level_data_create_sector_from_polygon(level_data *this, polygon *poly)
 {
   register size_t i;
   linedef *line;
-  polygon_line *config;
   int side;
 
   sector *sect = &this->sectors[this->sectors_count++];
@@ -83,8 +98,6 @@ level_data_create_sector_from_polygon(level_data *this, polygon *poly)
   return sect;
 }
 
-static sector *open_sector = NULL;
-
 sector*
 level_data_begin_sector(
   level_data *this,
@@ -111,7 +124,8 @@ level_data_begin_sector(
   sect->visible_linedefs_count = 0;
 #endif
 
-  open_sector = sect;
+  open_context.sectors.list[open_context.sectors.count++] = sect;
+  open_context.sectors.top = sect;
 
   return sect;
 }
@@ -119,13 +133,44 @@ level_data_begin_sector(
 void
 level_data_end_sector(void)
 {
-  open_sector = NULL;
+  assert(open_context.sectors.count > 0);
+  open_context.sectors.count -= 1;
+  if (open_context.sectors.count > 0) {
+    open_context.sectors.top = open_context.sectors.list[open_context.sectors.count-1];
+  } else {
+    open_context.sectors.top = NULL;
+  }
 }
+
+void
+level_data_subtract_polygon(
+  level_data *this,
+  sector *sect,
+  texture_ref texture_top,
+  texture_ref texture_middle,
+  texture_ref texture_bottom,
+  linedef_flags flags,
+  size_t vertices_count,
+  vec2f vertices[]
+) {
+  sect = sect ? sect : open_context.sectors.top;
+  assert(sect);
+
+
+
+}
+
+// void
+// level_data_begin_polygon_clipping(void) { }
+
+// void
+// level_data_end_polygon_clipping(void) { }
 
 void
 level_data_update_sector_lines(level_data *this, sector *sect, size_t num_lines, line_dto lines[])
 {
-  sect = sect ? sect : open_sector;
+  sect = sect ? sect : open_context.sectors.top;
+  assert(sect);
 
   size_t i;
   linedef *line;
@@ -376,4 +421,97 @@ linedef_segment_contains_light(const linedef_segment *this, const light *lt)
     }
   }
   return false;
+}
+
+static void
+subtract_top_sector_if_needed(void)
+{
+  int ci, vi, external_contours;
+
+  if (open_context.sectors.count < 2) {
+    return;
+  }
+
+  printf("### subtract_top_sector_if_needed\n\n");
+
+  sector *bottom_sector = open_context.sectors.list[open_context.sectors.count-2],
+         *top_sector = open_context.sectors.top;
+  gpc_polygon bottom_poly = {0}, top_poly = {0}, result = {0};
+
+  sector_to_gpc_polygon(bottom_sector, &bottom_poly);
+  sector_to_gpc_polygon(top_sector, &top_poly);
+
+  printf("bottom poly: %d vertices\n", bottom_poly.contour[0].num_vertices);
+  printf("top poly: %d vertices\n", top_poly.contour[0].num_vertices);
+
+  gpc_polygon_clip(GPC_DIFF, &bottom_poly, &top_poly, &result);
+
+  /* Read contours */
+  for (ci = 0, external_contours = 0; ci < result.num_contours; ++ci) {
+    if (!result.hole[ci]) {
+      if (external_contours++ == 0) {
+        printf("RESULTING COUNTOUR:\n");
+        for (vi = 0; vi < result.contour[ci].num_vertices; ++vi) {
+          printf("\t(%d, %d)\n", XY(result.contour[ci].vertex[vi]));
+        }
+
+        // pj->vertices_count = result.contour[ci].num_vertices;
+        // pj->vertices = realloc(pj->vertices, pj->vertices_count * sizeof(vec2f));
+        // for (vi = 0; vi < result.contour[ci].num_vertices; ++vi) {
+        //   pj->vertices[vi] = VEC2F(result.contour[ci].vertex[vi].x, result.contour[ci].vertex[vi].y);
+        // }
+      } else {
+        /* Create new polygon/sector from the other countour(s) */
+        // map_builder_insert_polygon(
+        //   this,
+        //   j+1,
+        //   pj->floor_height,
+        //   pj->ceiling_height,
+        //   pj->brightness,
+        //   pj->default_side_config,
+        //   pj->floor_texture,
+        //   pj->ceiling_texture,
+        //   result.contour[ci].num_vertices,
+        //   result.contour[ci].vertex,
+        //   GPC_VERTEX_LIST,
+        //   0,
+        //   NULL
+        // );
+      }
+    }
+  }
+
+  gpc_free_polygon(&bottom_poly);
+  gpc_free_polygon(&top_poly);
+  gpc_free_polygon(&result);
+}
+
+static void
+sector_to_gpc_polygon(const sector *sect, gpc_polygon *gpc_poly)
+{
+  size_t i;
+  gpc_vertex_list contour;
+  contour.vertex = (gpc_vertex*)malloc(sect->linedefs_count * sizeof(gpc_vertex));
+  const vertex *vfirst = sect->linedefs[0]->v0;
+
+  printf("Making contour:\n");
+
+  for (i = 0; i < sect->linedefs_count; ++i) {
+    contour.vertex[i] = (gpc_vertex) { sect->linedefs[i]->v0->point.x, sect->linedefs[i]->v0->point.y };
+
+    printf("(%d, %d)\n", XY(contour.vertex[i]));
+
+    if (i > 1 && (sect->linedefs[i]->v1 == vfirst || sect->linedefs[i]->v0 == vfirst)) {
+      break;
+    }
+  }
+
+  printf("num_vertices == %d\n", i);
+
+  contour.vertex = realloc(contour.vertex, sizeof(gpc_vertex) * i);
+  contour.num_vertices = i;
+
+  gpc_add_contour(gpc_poly, &contour, 0);
+
+  free(contour.vertex);
 }

@@ -15,7 +15,7 @@ typedef struct sector {
     int32_t     height;
     texture_ref texture;
   } floor, ceiling;
-  size_t      linedefs_count;  
+  size_t      linedefs_count;
   float       brightness;
   linedef     **linedefs;
 #ifdef RAYCASTER_PRERENDER_VISCHECK
@@ -50,6 +50,10 @@ sector_point_inside(const sector *this, vec2f point)
   /* Winding number algorithm */
   for (i = 0; i < this->linedefs_count; ++i) {
     line = this->linedefs[i];
+
+    if (line->side[0].flags & LINEDEF_FREESTANDING) {
+      continue;
+    }
 
     if (line->v0->point.y <= point.y) {
       if (line->v1->point.y > point.y) {

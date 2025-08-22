@@ -6,8 +6,9 @@
 /* You may define your own type or reference */
 typedef int32_t texture_ref;
 
-/* Some value for your type to identify a no-texture */
+/* Some values for your type to identify a clear and missing textures */
 #define TEXTURE_NONE -1
+#define TEXTURE_MISSING 0
 
 /*
  * Texture sampler accepting world space texture coordinates

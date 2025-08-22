@@ -68,6 +68,24 @@ void
 level_data_end_sector(void);
 
 void
+level_data_subtract_polygon(
+  level_data *this,
+  sector *sect,
+  texture_ref texture_top,
+  texture_ref texture_middle,
+  texture_ref texture_bottom,
+  linedef_flags flags,
+  size_t vertices_count,
+  vec2f vertices[]
+);
+
+// void
+// level_data_begin_polygon_clipping(void);
+
+// void
+// level_data_end_polygon_clipping(void);
+
+void
 level_data_update_sector_lines(level_data*, sector*, size_t, line_dto[]);
 
 light*
